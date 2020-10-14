@@ -49,6 +49,7 @@ stockCode = ["300285","300572","000858","600887","600845","300122","000651","600
 # stockCode = ["600887","600845"]
 # stockCode = ["300285","300572"]
 stockArray = []
+
 for i in stockCode:
     code = i[0:1]
     if code == '3' or code == '0':
