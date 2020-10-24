@@ -212,6 +212,7 @@ def getKlineData(stockCodeArray):
                                           "date,code,open,high,low,close,preclose,volume,amount,adjustflag,turn,tradestatus,pctChg,peTTM,pbMRQ,psTTM,pcfNcfTTM,isST",
                                           start_date='2015-01-01', end_date='2021-12-31',
                                           frequency="d", adjustflag="2")
+
         data_list = []
         while (rs.error_code == '0') & rs.next():
             # 获取一条记录，将记录合并在一起

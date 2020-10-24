@@ -42,6 +42,7 @@ while (rs.error_code == '0') & rs.next():
     data_list.append(rs.get_row_data())
 result = pd.DataFrame(data_list, columns=rs.fields)
 
+
 #### 结果集输出到csv文件 ####
 result.to_csv("/Users/miketam/Downloads/history_A_stock_k_data.csv",columns=rs.fields, index=False)
 print(result)
