@@ -226,6 +226,7 @@ def getSeasonData(stockCodeArray):
 #         for x in growth_list:
 #             yoyniArray.append(round(float(x[5]),2))
 #
+
 #         #处理杜邦分析
 #         dupont_list = dupont_list[::-1]
 #         dupontROEArray = [i, "净资产收益率/dupontROE",dupont_list[0][2]] #杜邦表ROE，净资产收益率

@@ -88,6 +88,7 @@ stockCode = ["300285","300572","000858","600887","600845","300122","000651","600
 import multiprocessing
 import time
 
+
 def func(msg):
     print(multiprocessing.current_process().name + '-' + msg)
 
