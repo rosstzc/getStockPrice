@@ -1,6 +1,7 @@
 import datetime
 import baostock as bs
 import pandas as pd
+import openpyxl
 import numpy as np
 from func import *
 from multiprocessing import  Process
@@ -266,11 +267,12 @@ def getKlineDataSplit(stockCodeArray):
     for i in newarr:
         x = x + 1
         stockArray = []
-        if x == 6:
+        if x > 0:
             for j in i:
                 oneStockArray = getKlineDataOne(j)
                 stockArray.extend(oneStockArray) #数组合并
             result2 = pd.DataFrame(stockArray)
+
             result2.to_csv("/Users/miketam/Downloads/getKLineData" + str(x) +".csv",encoding="gbk", index=False)
 
 
@@ -683,6 +685,32 @@ def getKlineData2(stockCodeArray):
 
     result2 = pd.DataFrame(stockArray)
     result2.to_csv("/Users/miketam/Downloads/getKLineData.csv",encoding="gbk", index=False)
+
+
+#
+def getOnlyKline(stockCodeArray):
+    array = []
+    data_list = []
+    for i in stockCodeArray:
+        oneStockArray = []
+        code = codeFormat(i)
+        rs = bs.query_history_k_data_plus(code,
+                                          # 0    1     2    3   4    5      6       7      8        9      10     11          12    13    14    15      16     17
+                                          # "date,code,open,high,low,close,preclose,volume,amount,adjustflag,turn,tradestatus,pctChg,peTTM,pbMRQ,psTTM,pcfNcfTTM,isST",
+                                          "date,code,open,high,low,close",
+                                          start_date='2015-01-01', end_date='2021-12-31',
+                                          frequency="d", adjustflag="2")
+
+
+        while (rs.error_code == '0') & rs.next():
+            # 获取一条记录，将记录合并在一起
+            data_list.append(rs.get_row_data())
+        array.extend(data_list)
+
+    result = pd.DataFrame(array)
+    ### 结果集输出到csv文件 ####
+    result.to_csv("/Users/miketam/Downloads/getOnlyKline.csv", encoding="gbk",index=False)
+    print(result)
 
 
 

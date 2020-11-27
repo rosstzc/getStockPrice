@@ -1,0 +1,1062 @@
+Sub 替换为零()
+'
+' 宏2 宏
+' 把 - 替换为 0
+'
+
+'
+    Cells.Replace What:="-", Replacement:="0", LookAt:=xlWhole, SearchOrder _
+        :=xlByRows, MatchCase:=False
+End Sub
+
+
+Sub 增加删除表()
+'
+' 增加删除表 宏
+' 增加删除表
+'
+    Dim sh As Worksheet
+
+'
+    Sheets.Add
+    Sheets("工作表1").Select
+    Sheets("工作表1").Name = "temp"
+    Sheets("temp").Select
+    ActiveWindow.SelectedSheets.Delete
+End Sub
+
+
+'所有表格初始化
+Sub UpdateData()
+
+End Sub
+
+
+
+'重复调测策略各种值，查看结果
+Sub policyCheck()
+    Application.ScreenUpdating = False   '禁止屏幕刷新
+    Application.Calculation = xlCalculationManual   '计算模式为手动
+
+
+    If MsgBox("在《" + ActiveSheet.Name + "》表，执行策略回测?", vbYesNo, "Hi") = vbNo Then Exit Sub
+
+    Dim arr As Variant '存储策略不同参数值下的回测结果
+    Dim result(500, 20) As Variant
+    Dim profitPrecent As Single
+    Dim lowProfitPrecent As Single
+    Dim lowLosssPrecent As Single
+    Dim ProfitArray As Variant
+    Dim x As Integer
+    Dim times As String
+    Dim code As String
+    code = ""
+
+
+     times = "one"
+       '      times = "multi"
+
+    If times = "one" Then '单次
+        arr = Array(0.9, 0.04, 0.02, times, "", "", "", "", "", "", "", "", "")  '盈亏策略
+        Call 五日十日双均线向上策略回测(arr, code)
+    End If
+
+    If times = "multi" Then  '多次
+        x = 0
+        result(x, 0) = "盈利"
+        result(x, 1) = "止盈"
+        result(x, 2) = "止损"
+        result(x, 3) = " "
+        result(x, 4) = "交易次"
+        result(x, 5) = "盈利次"
+        result(x, 6) = "亏次"
+        result(x, 7) = "胜率"
+        result(x, 8) = "总盈利"
+        result(x, 9) = "税费"
+        result(x, 10) = "实际盈利"
+        result(x, 11) = "平均盈利"
+        result(x, 12) = "序号"
+        result(x, 13) = "股票代码"
+
+        For i = 9 To 9 '利润率
+            profitPrecent = i * 0.1
+            For j = 1 To 10 '止盈率
+
+                lowProfitPrecent = j * 0.01
+                For k = 1 To 10 '此亏率
+                    lowLosssPrecent = k * 0.01
+
+                    arr = Array(profitPrecent, lowProfitPrecent, lowLosssPrecent, times, "盈利策略", "交易次", "盈利次", "亏次", "胜率", "总盈利", "税费", "实际盈利", "平均盈利") '盈亏策略
+                    Call 五日十日双均线向上策略回测(arr, code)
+
+                    '在test表写出不同收益策略的结果
+                    x = x + 1
+                    result(x, 0) = profitPrecent
+                    result(x, 1) = lowProfitPrecent
+                    result(x, 2) = lowLosssPrecent
+                    result(x, 3) = ""
+                    result(x, 4) = arr(5)
+                    result(x, 5) = arr(6)
+                    result(x, 6) = arr(7)
+                    result(x, 7) = arr(8)
+                    result(x, 8) = arr(9)
+                    result(x, 9) = arr(10)
+                    result(x, 10) = arr(11)
+                    result(x, 11) = arr(12)
+                    result(x, 12) = x - 1
+                    result(x, 13) = code
+
+                    'Sheets("test").Cells(x, 1).Value = arr(4)
+                    'Sheets("test").Cells(x, 2).Value = arr(5)
+                Next
+            Next
+        Next
+        Sheets("test").Range("A1").Resize(500, 20).Value = ""
+        Sheets("test").Range("A1").Resize(500, 20).Value = result  '一次性把二维数组写入表格
+    End If
+    MsgBox ("完成")
+    Application.Calculation = xlCalculationAutomatic
+    Application.ScreenUpdating = True
+
+End Sub
+
+
+'说明：找到两均线从非同向上到同向上前到哪个时间，买入股票。按照收益策略卖出股票，回测结果看策略效果
+
+Sub 五日十日双均线向上策略回测(arr As Variant, code As String)
+    Application.ScreenUpdating = False   '禁止屏幕刷新
+    Application.Calculation = xlCalculationManual   '计算模式为手动
+
+    'If MsgBox("确定执行五日十日均线向上策略回测?", vbYesNo, "Hi") = vbNo Then Exit Sub
+
+    Dim openPrice As Single
+    Dim highPrice As Single
+    Dim lowPrice As Single
+    Dim closePrice As Single
+    Dim i As Integer
+    Dim j As Integer
+
+    Dim Price5Line As Single  '5日均线价格
+    Dim Price10Line As Single  ' 10日均线价格
+    Dim priceBuy As Single  ' 买入价
+    Dim priceSell As Single ' 卖出价
+    Dim upupPrice As Single '双向上的最低价
+    Dim temp As Single
+    Dim buyState As Integer  '是否已买
+    Dim buyDate As String '购买日期
+
+
+
+    Dim buyCount As Integer '买次数
+    Dim sellCount As Integer '卖次数
+    Dim winCount As Integer '胜利次数
+    Dim lossCount As Integer '失败次数
+    Dim sumProfitPrecent As Single '盈利率累计
+    Dim avgProfitPrecent As Single '平均盈利率，累计盈利百分比/交易次数
+    Dim rowBegin As Integer
+    Dim testCode As String
+
+
+    buyCount = 0
+    sellCount = 0
+    winCount = 0
+    lossCount = 0
+    sumProfitPrecent = 0
+    avgProfitPrecent = 0
+    buyState = 0
+
+
+
+    rowBegin = 25
+
+    For i = rowBegin To 2000  '这里是回测
+        openPrice = Cells(i, 3).Value
+        highPrice = Cells(i, 4).Value
+        lowPrice = Cells(i, 5).Value
+        closePrice = Cells(i, 6).Value
+        upupPrice = Cells(i, 15).Value '今天双向上的最低价（根据昨天计算出来的）
+        code = Cells(5, 2).Value
+
+        testCode = Cells(i, 2).Value
+        If testCode = "" Then
+            Exit For
+        End If
+
+
+
+        '-----测试各种策略下的盈利情况------
+        If arr(3) = "one" Then
+            Cells(i, 23).Value = ""
+            Cells(i, 24).Value = ""
+            Cells(i, 25).Value = ""
+            Cells(i, 26).Value = ""
+            Cells(i, 36).Value = ""
+
+            Cells(i, 8).Interior.ColorIndex = xlNone '清除第8列的颜色
+
+        End If
+
+          '先定义一些价格
+        Dim profitPrice As Single '合理卖出价
+        Dim lowProfitPrice As Single '小盈利价
+        Dim lowlosssPrice As Single '小亏价
+        Dim preventLossPrice As Single '割肉价
+        Dim lossPrecent As Single '定义卖出时降价比率，主要时方便定义阶梯卖出价
+        Dim highPriceAfterBuy As Single '购买之后的最高收盘价（也可以用日内最高价对比测试）
+        Dim buyDesc As String '记录购买的一些说明
+        Dim sellDesc As String
+        sellDesc = ""
+        highPriceAfterBuy = 0
+        sellPrice = 0
+
+
+         '策略1
+        'Cells(i + 2, 26).Value = method1(i, buyState, openPrice, lowPrice, highPrice, upupPrice, buyPrice, buyDate, sellPrice, buyCount, sellCount, winCount, lossCount, sumProfitPrecent, avgProfitPrecent)
+
+        '策略2:动态、静态买入
+        Call method2(arr, i, buyState, openPrice, lowPrice, highPrice, closePrice, highPriceAfterBuy, upupPrice, buyPrice, buyDate, sellPrice, buyCount, sellCount, winCount, lossCount, sumProfitPrecent, avgProfitPrecent, lowProfitPrice, lowlosssPrice, sellDesc)
+    Next
+
+    'MsgBox ("完成了")
+    'MsgBox (result)
+    Application.Calculation = xlCalculationAutomatic
+    Application.ScreenUpdating = True
+
+End Sub
+
+
+'对应测试用例1.2
+'策略2:实时监测“双向上”，有就买入，卖出按照固定卖价设计，实际是设定了两个网格，一个是h80%_b2%，一个少于-b2%，只要价格出现在这两个网格就被卖出。 高于h80%或介于b2%_-b2%就不处理，待价格到达两个网格就被卖出。
+Function method2(arr, cellRow, buyState, openPrice, lowPrice, highPrice, closePrice, highPriceAfterBuy, upupPrice, buyPrice, buyDate, sellPrice, buyCount, sellCount, winCount, lossCount, sumProfitPrecent, avgProfitPrecent, lowProfitPrice, lowlosssPrice, sellDesc) As String
+
+    '动态以双向上基线买入，双向上最低价
+    Call buyMethodUpupPrice(arr, cellRow, upupPrice, buyPrice, lowPrice, highPrice, buyState, buyCount, buyDate)
+
+    '动态双向上买入
+    'Call buyMethodDoubleUp(arr, cellRow, buyState, openPrice, upupPrice, highPrice, buyPrice, buyDate, buyCount)
+
+    '静态双向上买入，今天有收盘价有双线上就在明天买入（实际通常有时延，可考了不周期修改为2小时），可能附加在均线上等条件
+    'Call buyMethod2(cellRow, buyPrice, openPrice, buyState, buyDate, buyCount)
+
+    Dim profitPrice As Single
+     '持续更新自购买后的最高收盘, 形成阶梯价格
+    If buyState = 1 Then
+        highPriceAfterBuy = getBigger(highPriceAfterBuy, Cells(cellRow - 1, 6)) '取从买入到卖出前一天的收盘价的最高价
+        profitPrice = buyPrice + (highPriceAfterBuy - buyPrice) * arr(0)
+        lowProfitPrice = buyPrice * (1 + arr(1))
+        lowlosssPrice = buyPrice * (1 - arr(2))
+        'sellPrice = 0
+    End If
+
+    If buyState = 1 And buyDate <> Cells(cellRow, 1).Value Then
+        '卖出方法，止损/止盈/最近收盘最高价折扣
+        'Call sellMethod1(cellRow, arr, buyState, buyDate, sellCount, sumProfitPrecent, sellPrice, buyPrice, avgProfitPrecent, winCount, lossCount, lowlosssPrice, sellDesc, openPrice, highPrice, lowPrice, lowProfitPrice, profitPrice)
+
+        Call sellMethodDoubleStop(arr, cellRow, lowPrice, highPrice, lowProfitPrice, lowlosssPrice, sellPrice, buyState)
+
+    End If
+
+    '刚刚卖出后，处理一下交易数据
+    Call tradeData(cellRow, arr, buyState, sellCount, sumProfitPrecent, sellPrice, buyPrice, avgProfitPrecent, winCount, lossCount, sellDesc)
+
+    '写一下统计结果
+    If cellRow > 200 And sellCount > 0 Then '避免sellCount = 0
+        Dim tax
+        tax = sellCount * 0.0015
+        temp3 = "盈亏策略，盈利：" + Str(Round(arr(0), 2)) + "，止盈：" + Str(Round(arr(1), 3)) + "，止亏：" + Str(Round(arr(2), 3))
+        temp2 = "交易" + Str(sellCount) + "次，盈利" + Str(winCount) + "次，亏" + Str(lossCount) + "次，胜率: " + Format(Round((winCount / sellCount), 3), "0.0%") + "，总盈利百分比: " + Format(Round(sumProfitPrecent, 4), "0.00%") + "，税费(未扣减)：" + Format(tax, "0.00%") + "，实际盈利：" + Format(Round(sumProfitPrecent - tax, 4), "0.00%") + "，平均盈利百分比: " + Format(Round(avgProfitPrecent, 4), "0.00%")
+        If arr(3) = "one" Then
+            If Cells(cellRow + 1, 1).Value = "" Then
+                 Cells(cellRow + 5, 26).Value = temp2
+                 Cells(cellRow + 5, 20).Value = temp3
+                 'Cells(207, 26).Value = "交易" + Str(sellCount) + "次，盈利" + Str(winCount) + "次，亏" + Str(lossCount) + "次，胜利率: " + Format(Round((winCount / sellCount), 3), "0.0%") + "，总盈利百分比: " + Format(Round(sumProfitPrecent, 4), "0.00%") + "，税费(未扣减)：" + Format(tax, "0.00%") + "，平均盈利百分比: " + Format(Round(avgProfitPrecent, 4), "0.00%")
+            End If
+        End If
+        arr(4) = temp3
+        arr(5) = sellCount
+        arr(6) = winCount
+        arr(7) = lossCount
+        arr(8) = Format(Round((winCount / sellCount), 3), "0.00%")
+        arr(9) = Format(Round(sumProfitPrecent, 4), "0.00%")
+        arr(10) = Format(tax, "0.00%")
+        arr(11) = Format(Round(sumProfitPrecent - tax, 4), "0.00%")
+        arr(12) = Format(Round(avgProfitPrecent, 4), "0.00%")
+
+End If
+
+End Function
+
+'盈利时，用双向上基准股价来卖出；亏损时实时价卖出。向上无止盈，向下有止损
+Function sellMethodUpupPrice()
+
+    If lowPrice < lowlosssPrice Then
+        sellPrice = lowlosssPrice
+    ElseIf upupPrice > lowProfitPrice Then
+        sellPrice = upupPrice
+
+
+    If lowPrice < upupPrice And upupPrice < highPrice Then
+        If upupPrice > lowProfitPrice Then
+            buyPrice = upupPrice
+        End If
+        If upupPrice < lowlosssPrice Then
+    End If
+
+
+End Function
+
+'动态买入，固定止盈止损卖出
+Function sellMethodDoubleStop(arr, cellRow, lowPrice, highPrice, lowProfitPrice, lowlosssPrice, sellPrice, buyState)
+    If lowPrice < lowProfitPrice And lowProfitPrice < highPrice Then
+        sellPrice = lowProfitPrice
+    ElseIf lowPrice < lowlosssPrice And lowlosssPrice < highPrice Then
+        sellPrice = lowlosssPrice
+    End If
+        '判断是符合卖出条件
+    If sellPrice <> 0 Then
+        buyState = 0
+        If arr(3) = "one" Then
+            Cells(cellRow, 24).Value = sellPrice
+        End If
+    End If
+End Function
+
+
+    '卖出方法，止损/止盈/最近收盘最高价折扣
+Function sellMethod1(cellRow, arr, buyState, buyDate, sellCount, sumProfitPrecent, sellPrice, buyPrice, avgProfitPrecent, winCount, lossCount, lowlosssPrice, sellDesc, openPrice, highPrice, lowPrice, lowProfitPrice, profitPrice)
+
+ '卖出, 下面代码逻辑请见自己印象笔记描述
+    If buyState = 1 And buyDate <> Cells(cellRow, 1).Value Then
+
+        '临时，测试用“有向下”的价格作止损价
+       ' If lowlosssPrice > upupPrice Then
+        '    lowlosssPrice = upupPrice
+        'End If
+
+
+        If openPrice < lowlosssPrice Then '跌超2%，割肉卖
+            sellPrice = openPrice
+            sellDesc = "情况1"
+        End If
+
+        'If lowlossPrice < openPrice < lowProfitPrice Then '这个代码可能是个或操作，害死人
+        If lowlosssPrice < openPrice And openPrice < lowProfitPrice Then
+
+            If highPrice < lowProfitPrice And lowPrice < lowlosssPrice Then
+                sellPrice = lowlosssPrice
+                sellDesc = "情况2.1:如果high< 2%,low < -2%, sellPrice = -2%"
+            ElseIf highPrice > lowProfitPrice And lowPrice > lowlosssPrice Then
+                sellPrice = lowProfitPrice
+                sellDesc = "情况2.2:如果high > 2%, low > -2%, sellPrice = 2%"
+            ElseIf highPrice > lowPorfitPrice And lowPrice < lowlosssPrice Then
+                sellPrice = buyPrice
+                sellDesc = "情况2.3:如果high > 2%, low < -2%, sellPrice = 原价卖出"
+            End If
+        End If
+
+        If openPrice > lowProfitPrice Then
+            If profitPrice > lowProfitPrice Then
+                If openPrice < profitPrice Then
+                    sellPrice = openPrice
+                    sellDesc = "情况3.1:如果openPrice < h80%, 那么sellPrice = OpenPrice"
+                End If
+                If openPrice > profitPrice Then
+                    If lowPrice < profitPrice Then
+                        sellPrice = profitPrice
+                        sellDesc = "情况3.2:如果 lowPrice > h80%, 那么sellPrice = h80%"
+                    End If
+                End If
+            End If
+        End If
+
+        '判断是符合卖出条件
+        If sellPrice <> 0 Then
+            buyState = 0
+            If arr(3) = "one" Then
+                Cells(cellRow, 24).Value = sellPrice
+            End If
+        End If
+        'Call tradeData(cellRow, arr, buyState, sellCount, sumProfitPrecent, sellPrice, buyPrice, avgProfitPrecent, winCount, lossCount, sellDesc)
+
+    End If
+End Function
+
+Function tradeData(cellRow, arr, buyState, sellCount, sumProfitPrecent, sellPrice, buyPrice, avgProfitPrecent, winCount, lossCount, sellDesc)
+    Dim temp As Integer
+    If buyState = 0 And sellPrice <> 0 Then  '刚刚卖出sellprice不等于0
+        'Rows(cellRow).Interior.Color = redColor
+        sellCount = sellCount + 1
+        sumProfitPrecent = sumProfitPrecent + sellPrice / buyPrice - 1
+        avgProfitPrecent = sumProfitPrecent / sellCount
+
+        If buyPrice < sellPrice Then
+            temp = 1 '盈利
+            winCount = winCount + 1
+        Else
+            temp = 0 '亏损
+            lossCount = lossCount + 1
+        End If
+
+        If arr(3) = "one" Then
+            redColor = RGB(247, 220, 218)
+            Cells(cellRow, 8).Interior.Color = redColor
+            Cells(cellRow, 26).Value = sellPrice / buyPrice - 1  '盈利百分比
+            Cells(cellRow, 26).NumberFormat = "0.00%"
+            Cells(cellRow, 36).Value = sellDesc
+            Cells(cellRow, 25).Value = temp
+        End If
+
+    End If
+
+End Function
+
+
+''动态以双向上基准线买入，只用基准股价买入
+Function buyMethodUpupPrice(arr, cellRow, upupPrice, buyPrice, lowPrice, highPrice, buyState, buyCount, buyDate)
+    If upupPrice > lowPrice And upupPrice < highPrice And buyState = 0 Then
+        buyPrice = upupPrice
+        buyState = 1
+        If buyState = 1 Then
+            buyDate = Cells(cellRow, 1).Value
+            buyCount = buyCount + 1
+            If arr(3) = "one" Then
+                Cells(cellRow, 23).Value = buyPrice
+                greenColor = RGB(197, 240, 178)
+                Cells(cellRow, 8).Interior.Color = greenColor
+            End If
+        End If
+
+    End If
+End Function
+
+
+'购买方法：双向上买入（动态或静态）
+Function buyMethodDoubleUp(arr, cellRow, buyState, openPrice, upupPrice, highPrice, buyPrice, buyDate, buyCount)
+    '实时判断有双向上，就买入
+    If buyState = 0 Then
+        If openPrice < upupPrice And upupPrice < highPrice Then
+            buyPrice = upupPrice '以最低双向上价格买入
+            buyState = 1
+        End If
+        If openPrice > upupPrice Then
+            buyPrice = openPrice
+            buyState = 1
+        End If
+        If buyState = 1 Then
+            buyDate = Cells(cellRow, 1).Value
+            buyCount = buyCount + 1
+            If arr(3) = "one" Then
+                Cells(cellRow, 23).Value = buyPrice
+                greenColor = RGB(197, 240, 178)
+                Cells(cellRow, 8).Interior.Color = greenColor
+            End If
+        End If
+    End If
+End Function
+
+
+
+
+'购买方法：静态双向上买入，第一天双向上，第二天买入（收盘价、开盘价）
+Function buyMethod2(cellRow, buyPrice, openPrice, buyState, buyDate, buyCount)
+    If buyState = 0 And Cells(cellRow - 1, 11) = "向上" And Cells(cellRow - 1, 12) = "向上" And Cells(cellRow - 1, 29) = "在上方" And Cells(cellRow - 1, 29) = "在上方" Then
+        '开盘价买入
+        buyPrice = openPrice
+        buyState = 1
+        If buyState = 1 Then
+            Cells(cellRow, 23).Value = buyPrice
+            buyDate = Cells(cellRow, 1).Value
+            buyCount = buyCount + 1
+            greenColor = RGB(197, 240, 178)
+            Cells(cellRow, 8).Interior.Color = greenColor
+        End If
+
+    End If
+
+End Function
+
+
+
+'对应测试用例1.1
+
+'策略1： 实时监测“双向上”，有就买入，有转向就卖出，都是实时的
+Function method1(cellRow, buyState, openPrice, lowPrice, highPrice, upupPrice, buyPrice, buyDate, sellPrice, buyCount, sellCount, winCount, lossCount, sumProfitPrecent, avgProfitPrecent) As String
+
+
+        '实时判断有双向上，就买入
+    If buyState = 0 And cellRow >= 26 And lowPrice < upupPrice And upupPrice < highPrice Then
+        Cells(cellRow, 23).Value = upupPrice
+        buyPrice = upupPrice '以最低双向上价格买入
+        buyState = 1
+        buyDate = Cells(cellRow, 1).Value
+        buyCount = buyCount + 1
+        greenColor = RGB(197, 240, 178)
+        Cells(cellRow, 8).Interior.Color = greenColor
+    End If
+
+    '不是买入那天，可以执行卖出逻辑
+    If buyState = 1 And buyDate <> Cells(cellRow, 1).Value Then
+        '三种情况：1）开盘价低于upup价表明已经转向，直接以开盘价卖出。 2）开盘价高于upup价，如果最低价低于upup价，表明必然经历转向，所以以upup价卖出。3）还是开盘价高于upup价，若最低价高于upup价表明没有转向，就不卖了
+
+        If openPrice < upupPrice Then  '开盘价少于upup价
+            sellPrice = openPrice
+            buyState = 0
+            Cells(cellRow, 24).Value = sellPrice
+        End If
+        If openPrice > upupPrice And lowPrice < upupPrice Then
+            sellPrice = upupPrice
+            Cells(cellRow, 24).Value = sellPrice
+            buyState = 0
+        End If
+
+        If buyState = 0 Then '刚刚卖出
+            redColor = RGB(247, 220, 218)
+            Cells(cellRow, 8).Interior.Color = redColor
+            sellCount = sellCount + 1
+            sumProfitPrecent = sumProfitPrecent + sellPrice / buyPrice - 1
+            avgProfitPrecent = sumProfitPrecent / sellCount
+            Cells(cellRow, 26).Value = sellPrice / buyPrice - 1  '盈利百分比
+            Cells(cellRow, 26).NumberFormat = "0.00%"
+
+            If buyPrice < sellPrice Then
+                Cells(cellRow, 25).Value = 1
+                winCount = winCount + 1
+            Else
+                Cells(cellRow, 25).Value = 0
+                lossCount = lossCount + 1
+            End If
+
+        End If
+        If cellRow > 200 Then
+            method1 = "交易" + Str(sellCount) + "次，盈利" + Str(winCount) + "次，亏" + Str(lossCount) + "次，胜利率" + Str(winCount / sellCount) + "次，总盈利百分比" + Str(sumProfitPrecent) + "，平均盈利百分比" + Str(avgProfitPrecent)
+
+        End If
+    End If
+End Function
+
+
+
+'计算收盘价相对与均线的位置
+Function checkClosePricePosition(closePrice As Single, linePrice As Single) As String
+    If closePrice >= linePrice Then
+        checkClosePricePosition = "在上方"
+    Else
+        checkClosePricePosition = ""
+    End If
+End Function
+
+'计算k线蜡烛相对均线的位置
+Function checkKlinePosition(lowPrice As Single, highPrice As Single, linePrice As Single) As String
+    If lowPrice >= linePrice Then  '检查K线蜡烛相对10日线位置上方，穿过，下方
+        checkKlinePosition = "在上方"
+    ElseIf highPrice <= linePrice Then
+        checkKlinePosition = "在下方"
+    Else
+        checkKlinePosition = "穿过"
+    End If
+
+End Function
+
+'计算收盘价偏离均线
+Function checkClosePriceDeviate(closePrice As Single, linePrice As Single) As Single
+    checkClosePriceDeviate = (closePrice / linePrice - 1)
+End Function
+
+
+'计算5日、10日均线的价格（可以扩展任意频率的均线）
+Function getPriceLine(cellRow As Integer, cellColumn As Integer, lineNo As Integer) As Double
+Dim temp As Double
+temp = 0
+    For j = 1 To lineNo
+        temp = temp + Cells(cellRow, cellColumn).Value
+        cellRow = cellRow - 1
+    Next
+    getPriceLine = temp / lineNo
+End Function
+
+'计算EMA均线
+Function getEMA(cellRow As Integer, cellColumn As Integer, lineNo As Integer, rowBegin As Integer, emaColumn) As Double
+Dim temp As Double
+Dim closePrice As Double
+Dim emaPrevious As Double
+temp = 0
+    If cellRow = rowBegin Then
+        For j = 1 To lineNo
+            temp = temp + Cells(cellRow, cellColumn).Value
+            cellRow = cellRow - 1
+        Next
+        getEMA = temp / lineNo
+    End If
+
+    If cellRow > rowBegin Then
+        closePrice = Cells(cellRow, cellColumn).Value
+        emaPrevious = Cells(cellRow - 1, emaColumn).Value
+        'temp = Cells(cellRow, cellColumn).Value * (2 / (lineNo + 1)) + Cells(cellRow - 1, emaColumn).Value * (1 - (2 / lineNo + 1))
+        temp = (2 * closePrice + (lineNo - 1) * emaPrevious) / (lineNo + 1)
+        getEMA = temp
+    End If
+
+End Function
+
+Function priceForEMAUp(emaPrevious As Single, N As Integer)
+priceForEMAUp = emaPrevious + 0.01 * (N + 1) / 2  '0.01是我自己定义的，今天的ema比昨天ema大0.01就表示向上
+End Function
+
+
+Function getBigger(a, b) As Variant
+    If a > b Then
+        getBigger = a
+    Else
+        getBigger = b
+    End If
+
+End Function
+
+Sub 均线策略测试()
+    Dim period As String
+    Dim priceLineThis As Double
+    Dim priceLineThat As Double
+    Dim priceBuy As Double
+    Dim priceSell As Double
+    Dim pricePlanedSell As Double
+    Dim priceLowProfit As Double
+    Dim PricePreventLoss As Double
+    Dim state As Integer  '买入状态，1表示已买入，0表示未买
+    Dim dayIdforSell As Integer
+    Dim dayIdforBuy As Integer
+    Dim temp As Double
+    Dim nextTime As Integer
+
+    state = 0
+    For i = 8 To 444 'i对应买入当天，卖出至少是i+1天
+        nextTime = 0
+        If state = 1 Then '已买入，这里第一次出现肯定是买入后的第二日
+        '计算卖出价
+            temp = Cells(i - 1, 6).Value * 0.98 '卖出那天前一天的收盘价
+            If i = dayIdforBuy + 1 Then '表示买入第二日
+                pricePlanedSell = temp
+            Else
+                If pricePlanedSell < temp Then  '第三日后以后,持续检测最高收盘价
+                    pricePlanedSell = temp
+                End If
+            End If
+             pricePlanedSell = getPricePlanedSell(priceBuy, pricePlanedSell, priceClose)
+             Cells(i, 10) = pricePlanedSell
+            If Cells(i, 5) <= pricePlanedSell And pricePlanedSell <= Cells(i, 4) Then
+                priceSell = pricePlanedSell  '卖出股票
+                Cells(i, 9) = priceSell
+                state = 0
+                nextTime = 1
+            Else
+
+            End If
+
+        End If
+
+        If state = 0 And nextTime = 0 Then  '未买入逻辑
+
+            priceLineThis = Cells((i - 1), 7).Value '昨天均线值
+            priceLineThat = Cells((i - 2), 7).Value '前一天均线值
+            If priceLineThis > priceLineThat Then
+                priceBuy = Cells(i, 3).Value   '若求方便，用昨天收盘价来做明天买入价；但为保证一定成交，程序上还是用今天开盘价
+                state = 1
+                dayIdforBuy = i
+                Cells(i, 8).Value = priceBuy
+                '计算计划卖出价
+                priceClose = Cells(i, 6)
+                'pricePlanedSell = Cells(i, 6) * 0.98
+                'pricePlanedSell = getPricePlanedSell(priceBuy, pricePlanedSell)
+                'priceOpenSecondDay =
+
+            End If
+        End If
+
+
+    Next
+
+End Sub
+
+Function getPricePlanedSell(priceBuy, pricePlanedSell, priceClose) As Double
+
+        'priceLowProfit = priceBuy * 1.02   '最低获利价
+        PricePreventLoss = priceBuy * 0.98  '止损价是买入价-2%
+        'If pricePlanedSell < priceLowProfit Then
+            'pricePlanedSell = priceLowProfit
+        'End If
+        If pricePlanedSell < priceBuy Then
+            pricePlanedSell = PricePreventLoss
+        End If
+
+        If pricePlanedSell < PricePreventLoss Then
+            pricePlanedSell = PricePreventLoss
+        End If
+        If priceClose < PricePreventLoss Then   '当天买入即下跌，而且收盘时下跌超过止损价。那么第二天要么等待（等到止损价），要么割肉以第二日开盘价卖出。
+            pricePlanedSell = priceClose '运行这段代码 表示割肉
+        End If
+        getPricePlanedSell = pricePlanedSell
+End Function
+
+
+Sub 单个表数据初始化()
+    Call 五日十日双均线向上策略回测初始化初始化初始化("one")
+End Sub
+
+Sub 多个表数据初始化()
+    Application.ScreenUpdating = False   '禁止屏幕刷新
+    Application.Calculation = xlCalculationManual   '计算模式为手动
+    If MsgBox("执行多个表数据初始化", vbYesNo, "Hi") = vbNo Then Exit Sub
+    Dim j As Integer
+    Dim code As String
+    Dim nameStock As String
+    Dim sheetId As Integer
+    Dim dateString As String
+    Dim ws As Worksheet
+
+
+    r = ActiveSheet.Range("A1").End(xlDown).Offset(1).Row  '找当前到第一个空行
+    temp = ActiveSheet.Name
+    For i = 2 To r - 1
+        'If IsEmpty(Cells(i, 1)) Then
+         '   Exit For
+        'End If
+
+        '找到股票代码对应但名称
+        code = Cells(i, 2).Value
+        With Sheets("300Stock").Range("a:a")
+            Set b = .Find(code)
+            If Not b Is Nothing Then
+                nameStock = Sheets("300Stock").Cells(b.Row, 3).Value
+            Else
+                MsgBox ("找不到这个代码股票名字：" + code)
+                Exit For
+            End If
+        End With
+        '从模版复制一个表
+        On Error Resume Next
+        If Sheets(nameStock) Is Nothing Then '指定的工作表不存在，复制模版表并修改名字
+            Sheets("template").Copy after:=Sheets(Sheets.Count)
+            Sheets("template (2)").Name = nameStock
+            Worksheets(temp).Activate
+        End If
+
+        If Not Sheets(nameStock) Is Nothing Then
+            dateString = Cells(i, 1)
+            With Sheets(nameStock).Range("a:a")
+                    Set c = .Find(dateString)
+                    If c Is Nothing Then   '把缺少的日期补充上
+                        'Row = Sheets(code).Range("A1").End(xlDown).Offset(1).Row '找到第一个空单元格
+                        Row = Sheets(nameStock).Range("a65536").End(xlUp).Row
+                        Row = Row + 1
+                        Sheets(nameStock).Rows(Row).Insert
+                        Sheets(nameStock).Cells(Row, 1).Value = Cells(i, 1).Value
+                        Sheets(nameStock).Cells(Row, 2).Value = Cells(i, 2).Value
+                        Sheets(nameStock).Cells(Row, 3).Value = Cells(i, 3).Value
+                        Sheets(nameStock).Cells(Row, 4).Value = Cells(i, 4).Value
+                        Sheets(nameStock).Cells(Row, 5).Value = Cells(i, 5).Value
+                        Sheets(nameStock).Cells(Row, 6).Value = Cells(i, 6).Value
+                        'Sheets(j).Range(Cells(Row, 1), Cells(Row, 6)).Copy Range(Cells(i, 1), Cells(i, 6))
+                    End If
+                End With
+        End If
+
+
+        '代码保留，日后可能有用
+        'For j = 2 To Sheets.Count
+            'If InStr(code, Sheets(j).Cells(1, 1).Value) > 0 Then  '判断是否有对应表
+                'dateString = Cells(i, 1)
+                'With Sheets(j).Range("a:a")
+                    'Set c = .Find(dateString)
+                'End With
+            'Else
+            '复制一个并且命名为股票代码
+
+            'End If
+        'Next
+
+    Next
+
+
+    For j = ActiveSheet.Index + 1 To Sheets.Count
+        Sheets(j).Select
+        Call 五日十日双均线向上策略回测初始化初始化初始化("multi")
+    Next
+    Worksheets(temp).Activate
+    MsgBox ("完成了")
+
+    Application.Calculation = xlCalculationAutomatic
+    Application.ScreenUpdating = True
+
+
+End Sub
+
+
+Sub 五日十日双均线向上策略回测初始化初始化初始化(Optional times As String = "one")
+    Application.ScreenUpdating = False   '禁止屏幕刷新
+    Application.Calculation = xlCalculationManual   '计算模式为手动
+
+
+    If times = "one" Then
+
+        'If MsgBox("五日十日双均线向上策略回测初始化初始化初始化,", vbYesNo, "Hi") = vbNo Then Exit Sub
+        If MsgBox("在《" + ActiveSheet.Name + "》表，执行双均线向上策略回测初始化初始化初始化", vbYesNo, "Hi") = vbNo Then Exit Sub
+    End If
+
+    Dim openPrice As Single
+    Dim highPrice As Single
+    Dim lowPrice As Single
+    Dim closePrice As Single
+    Dim i As Integer
+    Dim j As Integer
+
+    Dim Price5Line As Single  '5日均线价格
+    Dim Price10Line As Single  ' 10日均线价格
+    Dim Price20Line As Single '20日均线价格
+    Dim priceBuy As Single  ' 买入价
+    Dim priceSell As Single ' 卖出价
+    Dim upupPrice As Single '双向上的最低价
+    Dim temp As Single
+    Dim buyState As Integer  '是否已买
+    Dim buyDate As String '购买日期
+
+    Dim buyCount As Integer '买次数
+    Dim sellCount As Integer '卖次数
+    Dim winCount As Integer '胜利次数
+    Dim lossCount As Integer '失败次数
+    Dim sumProfitPrecent As Single '盈利率累计
+    Dim avgProfitPrecent As Single '平均盈利率，累计盈利百分比/交易次数
+    Dim rowBegin As Integer
+    Dim code As String
+
+
+    buyCount = 0
+    sellCount = 0
+    winCount = 0
+    lossCount = 0
+    sumProfitPrecent = 0
+    avgProfitPrecent = 0
+
+
+    rowBegin = 25
+    For i = rowBegin To 2000  '这里是初始化的循环
+
+        m = i
+         '把k线图变为3位小数
+        Cells(i, 3).Value = Round(Cells(i, 3).Value, 3)
+        Cells(i, 4).Value = Round(Cells(i, 4).Value, 3)
+        Cells(i, 5).Value = Round(Cells(i, 5).Value, 3)
+        Cells(i, 6).Value = Round(Cells(i, 6).Value, 3)
+
+        openPrice = Round(Cells(i, 3).Value, 3)
+        highPrice = Round(Cells(i, 4).Value, 3)
+        lowPrice = Round(Cells(i, 5).Value, 3)
+        closePrice = Round(Cells(i, 6).Value, 3)
+
+        code = Cells(i, 2).Value
+        If code = "" Then
+            Exit For
+        End If
+
+
+        '填充各均线价格，ma
+        Dim x As Integer
+        x = i
+        Price5Line = Round(getPriceLine(x, 6, 5), 3) '5日均线
+        x = i '要重新赋值,否则x会减少
+        Price10Line = Round(getPriceLine(x, 6, 10), 3) '10日均线
+        x = i '要重新赋值,否则x会减少
+        Price20Line = Round(getPriceLine(x, 6, 20), 3) '20日均线
+        Cells(i, 8).Value = Price5Line
+        Cells(i, 10).Value = Price10Line
+        Cells(i, 27).Value = closePrice / Price10Line - 1 '10日均线
+         Cells(i, 31).Value = Price20Line
+
+
+         'ema均线
+         x = i
+         'Cells(i, 37).Value = Round(getEMA(x, 6, 5, rowBegin, 37), 3) ' 5日ema
+         x = i
+         'Cells(i, 38).Value = Round(getEMA(x, 6, 10, rowBegin, 38), 3) ' 10日ema
+
+
+
+         '''临时用ema线来测试
+         'Cells(i, 8).Value = Cells(i, 37).Value
+         'Cells(i, 10).Value = Cells(i, 38).Value
+         'Price5Line = Cells(i, 8).Value
+         'Price10Line = Cells(i, 10).Value
+
+
+
+
+         'Function getEMA(cellRow As Integer, cellColumn As Integer, lineNo As Integer, rowBegin As Integer, emaColumn) As Double
+
+        Cells(i, 7).Interior.ColorIndex = xlNone
+        Cells(i, 8).Interior.ColorIndex = xlNone
+        Cells(i, 11).Interior.ColorIndex = xlNone
+        Cells(i, 12).Interior.ColorIndex = xlNone
+
+        '计算今天收盘价升降福
+        Cells(i, 7).Value = Cells(i, 6).Value / Cells(i - 1, 6).Value - 1
+        Cells(i, 7).NumberFormat = "0.00%"
+        If Cells(i, 7).Value > 0 Then
+            greenColor = RGB(197, 240, 178)
+            Cells(i, 7).Interior.Color = greenColor
+            Cells(i, 11).Interior.Color = greenColor
+            Cells(i, 12).Interior.Color = greenColor
+        End If
+
+        '
+        'Cells(i, 37).Value = openPrice / Cells(i - 1, 6).Value - 1
+        'Cells(i, 37).NumberFormat = "0.00%"
+
+        '判断5日线与10线的大小
+        If Price5Line > Price10Line Then
+            Cells(i, 9).Value = "   >"
+        Else
+            Cells(i, 9).Value = "      <"
+        End If
+
+        '判断均线向上或向下
+        Cells(i, 11).Value = ""
+        If Cells(i, 8).Value > Cells(i - 1, 8).Value Then
+            Cells(i, 11).Value = "向上"
+        Else
+        End If
+
+        Cells(i, 12).Value = ""
+        If Cells(i, 10).Value > Cells(i - 1, 10).Value Then
+            Cells(i, 12).Value = "向上"
+        End If
+        Cells(i, 13).Value = ""
+        If Cells(i, 11).Value = "向上" And Cells(i, 12).Value = "向上" Then
+            Cells(i, 13).Value = "是"
+        End If
+        Cells(i, 35).Value = ""
+        If Cells(i, 31).Value > Cells(i - 1, 31).Value Then
+            Cells(i, 35).Value = "向上"
+        End If
+
+
+
+         '计算明天均线向上的分界线
+         temp = 0
+         For j = 0 To 3
+            temp = temp + Cells(i - j, 6).Value
+         Next
+        Cells(i + 1, 19).Value = Round((Price5Line * 5 - temp + 0.01), 3) '明天5日向上的分界线
+        Cells(i + 1, 20).Value = Cells(i + 1, 19).Value / closePrice - 1 '明天分界线除以今天收盘价
+       Cells(i + 1, 20).NumberFormat = "0.00%"
+
+         temp = 0
+        For j = 0 To 8
+            temp = temp + Cells(i - j, 6).Value
+         Next
+        Cells(i + 1, 21).Value = Round((Price10Line * 10 - temp + 0.01), 3) '明天10日向上的分界线
+        Cells(i + 1, 22).Value = Cells(i + 1, 21).Value / closePrice - 1
+         Cells(i + 1, 22).NumberFormat = "0.00%"
+
+
+        '临时用ema数据来测试一下,ema分界线
+         'Cells(i + 1, 19).Value = Round(priceForEMAUp(Price5Line, 5), 3)
+         'Cells(i + 1, 20).Value = Round(Cells(i + 1, 19).Value / closePrice - 1, 3)
+         'Cells(i + 1, 21).Value = Round(priceForEMAUp(Price10Line, 10), 3)
+        ' Cells(i + 1, 22).Value = Cells(i + 1, 21).Value / closePrice - 1
+
+
+        '计算双向上所需的最低股价
+        If Cells(i + 1, 19).Value > Cells(i + 1, 21).Value Then
+            Cells(i + 1, 15).Value = Cells(i + 1, 19).Value
+        Else
+            Cells(i + 1, 15).Value = Cells(i + 1, 21).Value
+        End If
+        Cells(i + 1, 16).Value = Cells(i + 1, 15).Value / closePrice - 1
+        Cells(i + 1, 16).NumberFormat = "0.00%"
+
+        '计算双向上转向的股价
+        Cells(i + 1, 17).Value = "少于左边"
+
+
+        '根据最低、最高价看是否整体是否有动态变化。 1）若收盘为“双向上”，如果 “双向上最低价” >  "当天最低价"  证明曾经有向下； 2）若收盘为“非双向上”，如果 “双向上最低价” <  "当天最高价"证明曾经有双向上
+        Cells(i, 14).Value = ""
+        If Cells(i, 15).Value > lowPrice And Cells(i, 13).Value = "是" Then
+            Cells(i, 14).Value = "有向下"
+        End If
+        If Cells(i, 15).Value < highPrice And Cells(i, 13).Value = "" Then
+            Cells(i, 14).Value = "是,有双向上"
+        End If
+
+        '根据最低，最高价判断5日线，10日线是否有动态变化
+        Cells(i, 41).Value = ""
+        Cells(i, 42).Value = ""
+        If Cells(i, 19).Value > lowPrice And Cells(i, 11).Value = "向上" Then
+            Cells(i, 41).Value = "有向下"
+        End If
+        If Cells(i, 19).Value < highPrice And Cells(i, 11).Value = "" Then
+            Cells(i, 41).Value = "有向上"
+        End If
+        If Cells(i, 21).Value > lowPrice And Cells(i, 12).Value = "向上" Then
+            Cells(i, 42).Value = "有向下"
+        End If
+        If Cells(i, 21).Value < highPrice And Cells(i, 12).Value = "" Then
+            Cells(i, 42).Value = "有向上"
+        End If
+
+
+        '计算K线蜡烛图与均线的位置
+        Cells(i, 28).Value = checkClosePricePosition(closePrice, Price10Line)  '收盘价与10均线的相对位置
+        Cells(i, 29).Value = checkKlinePosition(lowPrice, highPrice, Price10Line) 'k线蜡烛与10日均线相对位置
+        Cells(i, 30).Value = checkClosePriceDeviate(closePrice, Price10Line)
+        Cells(i, 30).NumberFormat = "0.00%"
+        Cells(i, 32).Value = checkClosePricePosition(closePrice, Price20Line)  '收盘价与20均线的相对位置
+        Cells(i, 33).Value = checkKlinePosition(lowPrice, highPrice, Price20Line) 'k线蜡烛与20日均线相对位置
+        Cells(i, 34).Value = checkClosePriceDeviate(closePrice, Price20Line)
+        Cells(i, 34).NumberFormat = "0.00%"
+
+        Cells(i, 39).Value = Price10Line * 1.06
+
+         Cells(i, 40).Value = Price10Line * 0.94
+
+        '判断5日线，10日线是否有动态线上
+
+
+
+
+        '-----测试各种策略下的盈利情况------
+
+        upupPrice = Cells(i, 15).Value '今天双向上的最低价（根据昨天计算出来的）
+        Cells(i, 23).Value = ""
+        Cells(i, 24).Value = ""
+        Cells(i, 25).Value = ""
+        Cells(i, 26).Value = ""
+        Cells(i, 36).Value = ""
+        Cells(i, 8).Interior.ColorIndex = xlNone
+
+                '先定义一些价格
+        Dim lowProfitPrice As Single '小盈利价
+        Dim lowlosssPrice As Single '小亏价
+        Dim preventLossPrice As Single '割肉价
+        Dim lossPrecent As Single '定义卖出时降价比率，主要时方便定义阶梯卖出价
+        Dim highPriceAfterBuy As Single '购买之后的最高收盘价（也可以用日内最高价对比测试）
+        Dim buyDesc As String '记录购买的一些说明
+        Dim sellDesc As String
+        sellDesc = ""
+        highPriceAfterBuy = 0
+
+
+         '策略1
+        'Cells(i + 2, 26).Value = method1(i, buyState, openPrice, lowPrice, highPrice, upupPrice, buyPrice, buyDate, sellPrice, buyCount, sellCount, winCount, lossCount, sumProfitPrecent, avgProfitPrecent)
+
+        '策略2:动态、静态买入， 统一阶梯卖出
+        'Call method2(i, buyState, openPrice, lowPrice, highPrice, closePrice, highPriceAfterBuy, upupPrice, buyPrice, buyDate, sellPrice, buyCount, sellCount, winCount, lossCount, sumProfitPrecent, avgProfitPrecent, lowProfitPrice, lowlosssPrice, sellDesc)
+    Next
+
+    If times = "one" Then
+
+        MsgBox ("完成了")
+    End If
+
+    'MsgBox (result)
+    Application.Calculation = xlCalculationAutomatic
+    Application.ScreenUpdating = True
+
+End Sub
