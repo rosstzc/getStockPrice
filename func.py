@@ -4,6 +4,7 @@ from multiprocessing import Process
 
 
 
+
 def codeFormat(code) -> object:
     temp = code[0:1]
     if temp == '3' or temp == '0':

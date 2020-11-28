@@ -640,6 +640,7 @@ def getKlineData2(stockCodeArray):
                     PricePBRoe2Array.append('')
                     x = x + 1
 
+
                 for x in range(3, len(epsTTMArray)):
                     if x < len(pbArray): #季度财报比K线日期早，因为上市后回报之前财报也附上
                         pb = pbArray[x]

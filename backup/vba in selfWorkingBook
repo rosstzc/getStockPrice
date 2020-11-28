@@ -1050,6 +1050,7 @@ Sub 五日十日双均线向上策略回测初始化初始化初始化(Optional 
         'Call method2(i, buyState, openPrice, lowPrice, highPrice, closePrice, highPriceAfterBuy, upupPrice, buyPrice, buyDate, sellPrice, buyCount, sellCount, winCount, lossCount, sumProfitPrecent, avgProfitPrecent, lowProfitPrice, lowlosssPrice, sellDesc)
     Next
 
+
     If times = "one" Then
 
         MsgBox ("完成了")

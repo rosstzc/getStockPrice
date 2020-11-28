@@ -85,6 +85,7 @@ def getMaLine(stockCodeArray,stockNameArray):
             maArrayOneDay = [Current[0], ma5, ma10]
 
 
+
             #这里预留位置，调用函数取"双均线连续3天向下，5日线今天向上"
 
             maArrayOneStock.append(maArrayOneDay)
