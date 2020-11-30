@@ -1,6 +1,19 @@
 import datetime
+import pandas as pd
+import openpyxl
+import numpy as np
+from pandas import DataFrame
+
 from multiprocessing import Process
 
+
+#获取均线向上向下动态
+def getTrend(current,previous):
+    if current > previous:
+        trend = "向上"
+    else:
+        trend = "向下"
+    return trend
 
 
 
