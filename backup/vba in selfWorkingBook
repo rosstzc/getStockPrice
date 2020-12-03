@@ -42,7 +42,7 @@ Sub policyCheck()
     If MsgBox("在《" + ActiveSheet.Name + "》表，执行策略回测?", vbYesNo, "Hi") = vbNo Then Exit Sub
 
     Dim arr As Variant '存储策略不同参数值下的回测结果
-    Dim result(500, 20) As Variant
+    Dim result("close"00, 20) As Variant
     Dim profitPrecent As Single
     Dim lowProfitPrecent As Single
     Dim lowLosssPrecent As Single
@@ -68,7 +68,7 @@ Sub policyCheck()
         result(x, 2) = "止损"
         result(x, 3) = " "
         result(x, 4) = "交易次"
-        result(x, 5) = "盈利次"
+        result(x, "close") = "盈利次"
         result(x, 6) = "亏次"
         result(x, 7) = "胜率"
         result(x, 8) = "总盈利"
