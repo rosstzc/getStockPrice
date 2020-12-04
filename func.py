@@ -24,14 +24,14 @@ def getPriceForMaUp(lineNumber, closePriceArray, maArray):
         if i >= number:
             for j in range(number):
                 temp = temp + float(closePriceArray[i - j])
-            temp2 = maArray[i] * lineNumber - temp + 0.01
+            temp2 = maArray[i] * lineNumber - temp + 0.001
         priceForMaUpArray.append(temp2)
     priceForMaUpDf = pd.DataFrame(priceForMaUpArray)
     return priceForMaUpDf
 
 #计算ema线明天向上的最低价格
 def getPriceForEmaUp(lineNumber,emaPrevious):
-    price = (emaPrevious + 0.01 - emaPrevious*(lineNumber-1)/(lineNumber+1))*(lineNumber+1)/2
+    price = (emaPrevious + 0.001 - emaPrevious*(lineNumber-1)/(lineNumber+1))*(lineNumber+1)/2
     return price
 
 #获取均线向上向下动态

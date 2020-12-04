@@ -7,19 +7,87 @@ import matplotlib.pyplot as plt
 from func import *
 
 
+pd.set_option('display.width',190)
+pd.set_option('display.max_columns',130)
+pd.set_option('display.max_colwidth',130)
+# pd.set_option('display.max_rows', None)
 
 
-
+#策略测试
 def checkPolicy(stockCodeArray):
-    dfArray = processKline(stockCodeArray)
-    for i in stockCodeArray:
+    # 石基信息(SZ: 002153)，中环股份(SZ:002129)，上海莱士(SZ:002252)
 
-        return
+    df = processKline(stockCodeArray,toFile=0)
+
+    df['双向下'] = ''
+    df['买入点'] = ''
+    df['买入价'] = ''
+    df['卖出价'] = ''
+    df['是否盈利'] = ''
+    buyState = 0
+    buyPrice = 0
+    wincount = 0
+    losscount = 0
+
+    index = len(df) - 1 #得到索引
+    #这个循环效率，日后可以优化
+    for i in range(index):
+        if df.at[i,'ma5动态'] == '' and df.at[i,'ma10动态'] == '':
+            df.at[i,'双向下'] = 1
+        if df.at[i,'ma双向上价K线内'] == 'Y' and buyState == 0:  #从当前"双向上"行，找上一个"双向上"行，然后计算"双向下"的行数，大于等于2，就把本行设为买点
+            x = 0
+            for j in range(1,100):
+                if df.at[i-j,'双向下'] == 1:
+                    x = x + 1
+                if df.at[i-j, '双向上'] != '':
+                    break
+            if x >= 2:
+                checkMacd()
+                df.at[i, '买入点'] = 1
+                buyState = 1
+                buyPrice = df.at[i,'ma双向上价']
+                df.at[i,'买入价'] = buyPrice
+        #计算卖出
+        if buyState == 1 and df.at[i, '买入点'] != 1:
+            lossPrice = buyPrice * 0.96
+            winPrice = buyPrice * 1.04
+            if df.at[i,'low'] < lossPrice:
+                df.at[i,'是否盈利'] = 0
+                df.at[i,'卖出价'] = lossPrice
+                buyState = 0
+                losscount = losscount + 1
+            if df.at[i,'high'] > winPrice:
+                df.at[i,'是否盈利'] = 1
+                df.at[i,'卖出价'] = winPrice
+                buyState = 0
+                wincount = wincount + 1
+            if df.at[i, 'low'] < lossPrice and df.at[i,'high'] > winPrice:
+                df.at[i, '是否盈利'] = '不确定'
+                buyState = 0
+
+    df.to_csv("/Users/miketam/Downloads/checkPolicy.csv", encoding="gbk", index=False)
+    df.to_excel('/Users/miketam/Downloads/checkPolicy.xlsx', float_format='%.5f',index=False)
+    print("盈利次数：" + str(wincount) + "亏损次数：" + str(losscount))
+    print(df)
 
 
+#检查一下macd这个点是否靠谱
+def checkMacd(i,df):
+    array = []
+    if df.at[i,'macd_dif'] > 0:
+        for j in range(0,1000):
+            if df.at[i-j,'macd_dif'] < 0:
+                break
+            array.append(df.at[i-j,'macd_dif'])
+    a = np.array(array)
+    
 
+
+    #若当天是dif是正数，向左边取每天的dif值，直到0， 然后从这些天取到：最大值，平均值，当天值与这两值到偏差
+
+    return
 #K线数据二次加工
-def processKline(stockCodeArray):
+def processKline(stockCodeArray, toFile = 1):
     kLineArray = getOnlyKline(stockCodeArray,0)
     dfAppend:DataFrame = pd.DataFrame()
     # 要获取的值：
@@ -34,6 +102,13 @@ def processKline(stockCodeArray):
         kLineDf: DataFrame = pd.DataFrame(x)
         # kLineDf.columns = ["date", "code", "open", "high", "low", "close"]
         # 添加均线
+        kLineDf[2] = pd.to_numeric(kLineDf[2])  # 开盘价，把字符转化为数字
+        kLineDf[3] = pd.to_numeric(kLineDf[3])  # 最高价，把字符转化为数字
+        kLineDf[4] = pd.to_numeric(kLineDf[4])  # 最低价，把字符转化为数字
+        kLineDf[5] = pd.to_numeric(kLineDf[5])  # 收盘价，把字符转化为数字
+
+        kLineDf["增幅"] = kLineDf[5]/kLineDf[5].shift() - 1
+        kLineDf["增幅"] = kLineDf["增幅"].apply(lambda x: format(x, '.2%'))
         kLineDf["ma5"] = kLineDf[5].rolling(window=5).mean()  # 5日线
         kLineDf["ma10"] = kLineDf[5].rolling(window=10).mean()  # 10日线
         kLineDf["ma5VsMa10"] = np.where(kLineDf['ma5'] > kLineDf['ma10'] ,"大于","") #两均线比较
@@ -58,10 +133,7 @@ def processKline(stockCodeArray):
         kLineDf["priceForMa10Up"] = getPriceForMaUp(10,closePriceArray,ma10Array)
         kLineDf["priceForMa5Ma10Up"] = np.where(kLineDf["priceForMa5Up"] > kLineDf["priceForMa10Up"],kLineDf["priceForMa5Up"],kLineDf["priceForMa10Up"])#双向上最低价
 
-        kLineDf[2] = pd.to_numeric(kLineDf[2]) #开盘价，把字符转化为数字
-        kLineDf[3] = pd.to_numeric(kLineDf[3]) #最高价，把字符转化为数字
-        kLineDf[4] = pd.to_numeric(kLineDf[4]) #最低价，把字符转化为数字
-        kLineDf[5] = pd.to_numeric(kLineDf[5]) #收盘价，把字符转化为数字
+
 
         # #给双向上指标增加动态
         kLineDf["ma5ma10Trend"] = np.where((kLineDf["ma5ma10Trend"] == '是')&(kLineDf[4] < kLineDf["priceForMa5Ma10Up"]),'是，有向下', kLineDf["ma5ma10Trend"])
@@ -94,10 +166,6 @@ def processKline(stockCodeArray):
         kLineDf["highPriceVsPriceForMa5Ma10Up"] = kLineDf["highPriceVsPriceForMa5Ma10Up"].apply(lambda x: format(x, '.2%'))
 
         # #MACD相关
-        # kLineDf["macd12"]
-        # kLineDf["macd26"]
-        # kLineDf["macdQuick"]
-        # kLineDf["macdSlow"]
         df = kLineDf[[5]]
         df.reset_index(level=0, inplace=True)
         df.columns = ['ds', 'y']
@@ -119,53 +187,54 @@ def processKline(stockCodeArray):
         # plt.legend(loc='upper left')
         # plt.show()
 
-########下面开始计算ema的数据##########
-        kLineDf['closeEma'] = kLineDf[5]  #为方便ema双向上的预测收盘价，新增一列收盘价
-
-        kLineDf['ema12'] = exp1
-        kLineDf['ema26'] = exp2
-
-        kLineDf["ema12VsEma26"] = np.where(kLineDf['ema12'] > kLineDf['ema26'] ,"大于","") #两均线比较
-
-        #均线动态(收盘价)
-        kLineDf["ema12Trend"] = np.where( kLineDf['ema12'] > kLineDf['ema12'].shift(+1) ,"向上","")
-        kLineDf["ema26Trend"] = np.where( kLineDf['ema26'] > kLineDf['ema26'].shift(+1) ,"向上","")
-
-        #5日线，10日线是否双向上
-        kLineDf["ema12ema26Trend"] = np.where((kLineDf["ema12Trend"]=="向上") & (kLineDf["ema26Trend"]=="向上"),"是","")
-
-        #计算ema线向上的最低价格
-        kLineDf["priceForEma12Up"] = getPriceForEmaUp(12,kLineDf['ema12'].shift(+1)) #当前行计算是下一日的最低向上价格
-        kLineDf["priceForEma26Up"] = getPriceForEmaUp(26,kLineDf['ema26'].shift(+1))
-        kLineDf["priceForEma12Ema26Up"] = np.where(kLineDf["priceForEma12Up"] > kLineDf["priceForEma26Up"],kLineDf["priceForEma12Up"],kLineDf["priceForEma26Up"])
-
-        #更新最后一个收盘价(EMA)作为预测，然后在更新ema均线，同时也更新两个ema线
-        kLineDf.at[index,'closeEma'] = kLineDf.at[index, 'priceForEma12Ema26Up']
-        kLineDf['ema12'] = kLineDf['ema12'].ewm(span=12, adjust=False).mean()
-        kLineDf['ema26'] = kLineDf['ema26'].ewm(span=26, adjust=False).mean()
-
-        # #给ema双向上指标增加动态
-        kLineDf["ema12ema26Trend"] = np.where((kLineDf["ema12ema26Trend"] == '是')&(kLineDf[4] < kLineDf["priceForEma12Ema26Up"]),'是，有向下', kLineDf["ema12ema26Trend"])
-        kLineDf["ema12ema26Trend"] = np.where((kLineDf["ema12ema26Trend"] == '')&(kLineDf[3] > kLineDf["priceForEma12Ema26Up"]),'有双向上', kLineDf["ema12ema26Trend"])
-
-        #双向上价是否在K线内
-        kLineDf["priceForEma12Ema26UpInKLine"] = np.where((kLineDf[4] < kLineDf["priceForEma12Ema26Up"])&(kLineDf["priceForEma12Ema26Up"] < kLineDf[3]),'Y','')
-
-        # ema双向上基线对比ema26日线
-        kLineDf["priceForEma12Ema26UpVsEma26"] = kLineDf["priceForEma12Ema26Up"] / kLineDf["ema26"] - 1
-        kLineDf["priceForEma12Ema26UpVsEma26"] = kLineDf["priceForEma12Ema26UpVsEma26"].apply(lambda x: format(x, '.2%'))
-
-        ##ema双向上价/收盘价
-        kLineDf["priceForEma12Ema26UpVsClosePrice"] = kLineDf["priceForEma12Ema26Up"] / kLineDf[5] - 1
-        kLineDf["priceForEma12Ema26UpVsClosePrice"] = kLineDf["priceForEma12Ema26UpVsClosePrice"].apply(lambda x: format(x, '.2%'))
-
-         #最低价/ema双向上价
-        kLineDf["lowPriceVspriceForEma12Ema26Up"] = kLineDf[4] / kLineDf["priceForEma12Ema26Up"] - 1
-        kLineDf["lowPriceVspriceForEma12Ema26Up"] = kLineDf["lowPriceVspriceForEma12Ema26Up"].apply(lambda x: format(x, '.2%'))
-
-         #最高价/ema双向上价
-        kLineDf["highPriceVspriceForEma12Ema26Up"] = kLineDf[3] / kLineDf["priceForEma12Ema26Up"] - 1
-        kLineDf["highPriceVspriceForEma12Ema26Up"] = kLineDf["highPriceVspriceForEma12Ema26Up"].apply(lambda x: format(x, '.2%'))
+# ########下面开始计算ema的数据##########
+#         kLineDf['closeEma'] = kLineDf[5]  #为方便ema双向上的预测收盘价，新增一列收盘价
+#
+#         kLineDf['ema12'] = exp1
+#         kLineDf['ema26'] = exp2
+#
+#         kLineDf["ema12VsEma26"] = np.where(kLineDf['ema12'] > kLineDf['ema26'] ,"大于","") #两均线比较
+#
+#         #均线动态(收盘价)
+#         kLineDf["ema12Trend"] = np.where( kLineDf['ema12'] > kLineDf['ema12'].shift(+1) ,"向上","")
+#
+#         kLineDf["ema26Trend"] = np.where( kLineDf['ema26'] > kLineDf['ema26'].shift(+1) ,"向上","")
+#
+#         #5日线，10日线是否双向上
+#         kLineDf["ema12ema26Trend"] = np.where((kLineDf["ema12Trend"]=="向上") & (kLineDf["ema26Trend"]=="向上"),"是","")
+#
+#         #计算ema线向上的最低价格
+#         kLineDf["priceForEma12Up"] = getPriceForEmaUp(12,kLineDf['ema12'].shift(+1)) #当前行计算是下一日的最低向上价格
+#         kLineDf["priceForEma26Up"] = getPriceForEmaUp(26,kLineDf['ema26'].shift(+1))
+#         kLineDf["priceForEma12Ema26Up"] = np.where(kLineDf["priceForEma12Up"] > kLineDf["priceForEma26Up"],kLineDf["priceForEma12Up"],kLineDf["priceForEma26Up"])
+#
+#         #更新最后一个收盘价(EMA)作为预测，然后在更新ema均线，同时也更新两个ema线
+#         kLineDf.at[index,'closeEma'] = kLineDf.at[index, 'priceForEma12Ema26Up']
+#         kLineDf['ema12'] = kLineDf['closeEma'].ewm(span=12, adjust=False).mean()
+#         kLineDf['ema26'] = kLineDf['closeEma'].ewm(span=26, adjust=False).mean()
+#
+#         # #给ema双向上指标增加动态
+#         kLineDf["ema12ema26Trend"] = np.where((kLineDf["ema12ema26Trend"] == '是')&(kLineDf[4] < kLineDf["priceForEma12Ema26Up"]),'是，有向下', kLineDf["ema12ema26Trend"])
+#         kLineDf["ema12ema26Trend"] = np.where((kLineDf["ema12ema26Trend"] == '')&(kLineDf[3] > kLineDf["priceForEma12Ema26Up"]),'有双向上', kLineDf["ema12ema26Trend"])
+#
+#         #双向上价是否在K线内
+#         kLineDf["priceForEma12Ema26UpInKLine"] = np.where((kLineDf[4] < kLineDf["priceForEma12Ema26Up"])&(kLineDf["priceForEma12Ema26Up"] < kLineDf[3]),'Y','')
+#
+#         # ema双向上基线对比ema26日线
+#         kLineDf["priceForEma12Ema26UpVsEma26"] = kLineDf["priceForEma12Ema26Up"] / kLineDf["ema26"] - 1
+#         kLineDf["priceForEma12Ema26UpVsEma26"] = kLineDf["priceForEma12Ema26UpVsEma26"].apply(lambda x: format(x, '.2%'))
+#
+#         ##ema双向上价/收盘价
+#         kLineDf["priceForEma12Ema26UpVsClosePrice"] = kLineDf["priceForEma12Ema26Up"] / kLineDf[5] - 1
+#         kLineDf["priceForEma12Ema26UpVsClosePrice"] = kLineDf["priceForEma12Ema26UpVsClosePrice"].apply(lambda x: format(x, '.2%'))
+#
+#          #最低价/ema双向上价
+#         kLineDf["lowPriceVspriceForEma12Ema26Up"] = kLineDf[4] / kLineDf["priceForEma12Ema26Up"] - 1
+#         kLineDf["lowPriceVspriceForEma12Ema26Up"] = kLineDf["lowPriceVspriceForEma12Ema26Up"].apply(lambda x: format(x, '.2%'))
+#
+#          #最高价/ema双向上价
+#         kLineDf["highPriceVspriceForEma12Ema26Up"] = kLineDf[3] / kLineDf["priceForEma12Ema26Up"] - 1
+#         kLineDf["highPriceVspriceForEma12Ema26Up"] = kLineDf["highPriceVspriceForEma12Ema26Up"].apply(lambda x: format(x, '.2%'))
 
 
         # #实时价格
@@ -216,13 +285,15 @@ def processKline(stockCodeArray):
             'highPriceVspriceForEma12Ema26Up': '最高价/ema双向上价',
         }, inplace=True)
 
+
         dfAppend = dfAppend.append(kLineDf)
         ### 结果集输出到csv文件 ####
-    dfAppend.to_csv("/Users/miketam/Downloads/processKline.csv", encoding="gbk", index=False)
-    # macd.to_csv("/Users/miketam/Downloads/processKline_macd.csv", encoding="gbk", index=False)
-    print(dfAppend)
+    if toFile == 1:
+        dfAppend.to_csv("/Users/miketam/Downloads/processKline.csv", encoding="gbk", index=False)
+        # macd.to_csv("/Users/miketam/Downloads/processKline_macd.csv", encoding="gbk", index=False)
+        print(dfAppend)
 
-    dfAppend.to_excel('/Users/miketam/Downloads/processKline.xlsx', float_format='%.5f',index=False)
+        dfAppend.to_excel('/Users/miketam/Downloads/processKline.xlsx', float_format='%.5f',index=False)
     return dfAppend
 
 
