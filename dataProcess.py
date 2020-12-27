@@ -711,7 +711,7 @@ def getOnlyKline(stockCodeArray):
     result = pd.DataFrame(array)
     ### 结果集输出到csv文件 ####
     result.to_csv("/Users/miketam/Downloads/getOnlyKline.csv", encoding="gbk",index=False)
-    print(result)
+    # print(result)
 
 
 
