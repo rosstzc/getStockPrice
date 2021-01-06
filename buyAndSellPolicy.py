@@ -6,8 +6,494 @@ from pandas import DataFrame
 import matplotlib.pyplot as plt
 from func import *
 
+#计算某天或某周都投资价值积分
+def getScore(df, i, period):
+    #加分、扣分、得分，分值描述
+
+    #bar向上、位置是低位，加1分
+
+    # df['加分'] = 0
+    # df['扣分'] = 0
+    # df['得分描述'] = ''
+    # for i in range(len(df)):
+    scoreAdd = 0
+    scoreReduce = 0
+    textAdd = ''
+    textReduce = ''
+    #bar方向+位置得分评估
+    if i > 0:
+        if df.at[i,'bar'] > 0:
+            if df.at[i,'po'] == '低':
+                scoreAdd += 1
+                textAdd = 'bar向上低位+1'
+            if df.at[i, 'po'] == '中':
+                scoreAdd += 1
+                textAdd = 'bar向上中位+1'
+            if df.at[i, 'po'] == '高':
+                scoreReduce += -1
+                textReduce = 'bar向上高位-1'
+
+        if df.at[i,'bar'] < 0:
+            if df.at[i,'po'] == '低':
+                scoreReduce += -1
+                textReduce = 'bar向下低位-1'
+            if df.at[i, 'po'] == '中':
+                scoreReduce += -1
+                textReduce = 'bar向下中位-1'
+            if df.at[i, 'po'] == '高':
+                scoreAdd += 1
+                textAdd = 'bar向下高位+1'
+
+        #kdj得分评估
+        if df.at[i,'k'] < 20 and df.at[i,'k'] - df.at[i-1,'k'] > 0:
+            scoreAdd += 1
+            textAdd = textAdd + '，k向上少于20+1'
+
+        if df.at[i, 'k'] > 20 and df.at[i - 1, 'k'] < 0:
+            scoreAdd += 1
+            textAdd = textAdd + '，k上穿过20+1'
+
+        if df.at[i, 'k'] > 50 and df.at[i - 1, 'k'] < 50:
+            scoreAdd += 1
+            textAdd = textAdd + '，k上穿过50+1'
+
+        if df.at[i,'k'] > 80 and df.at[i,'k'] - df.at[i-1,'k'] < 0:
+            scoreAdd += -1
+            textReduce = textReduce + '，k向下大于80-1'
+
+        if df.at[i, 'k'] < 80 and df.at[i - 1, 'k'] > 80:
+            scoreAdd += -1
+            textReduce = textReduce + '，k下穿过80-1'
 
 
+        if period == 'd':
+            #股价大于ma100+1
+            if  df.at[i,'大于ma110'] == '大于ma110':
+                scoreAdd += 1
+                textAdd = textAdd + '，大于ma110+1'
+
+
+        #前两周bar降低，这周上升+1
+
+        #bar值零线下上升+1
+        if df.at[i,'bar'] > 0 and df.at[i,'dif'] < 0:
+            scoreAdd += -1
+            textReduce = textReduce + '，bar在0下上升+1'
+
+
+        df.at[i,'加分'] = scoreAdd
+        df.at[i,'减分'] = scoreReduce
+        df.at[i,'加分描述'] = textAdd
+        df.at[i,'减分描述'] = textReduce
+
+
+    # df["加分"] = np.where((df['bar'] > 0) & (df['po'] == '低')| (df['po'] == '中'), (df['加分']+1) , df["加分"])  # 两均线比较
+    # # df["加分"] = np.where((df['bar'] > 0) & (df['po'] == '') , (df['加分']+1) , df["加分"])  # 两均线比较
+    # df["加分描述"] = np.where((df['bar'] > 0) , df['加分描述']+'', '')  # 两均线比较
+    # # print(df.shape)
+
+    return df
+
+
+def buyPolicyKdjUp20(dfArray,StockName):
+    dfAppend: DataFrame = pd.DataFrame() #
+    x = -1
+    for df in dfArray:
+        x = x + 1
+        df = df.drop([len(df) - 1])  # 把以前手工加的最后一行删除
+        df['code'] = df['code'] +' ' +StockName[x]
+        dfWeek = df.drop_duplicates(subset=['date_W'], keep='last', ignore_index=True)  # 只保留每周最后一条记录
+        #找到J值在20以下或穿过20，并且周线处于高位，标记为"差"位置
+        condition = (df['j20'] == 'j向上少于20') | (df['j20'] == 'j穿过20')
+        df['poValue'] = np.where((df['po_W'] == '3') & (df['bTrend_W'] == '向上') & condition,'0','')
+        df['pEma26'] = df['close']/df['ema26'] - 1
+        # df['pEma26'] = df['pEma26'].apply(lambda x: format(x, '.2%'))
+
+        df2 = df[['大于ma110','code', 'date','dw','close','pEma26','增幅','bar','bTrend','po','barKey','j','j20','poValue','date_W', '增幅_W','bar_W','bTrend_W','po_W','barKey_W','j_W','j20_W']]
+
+
+        #找到最近一个星期10个交易日J值在20以下或穿过20
+        df2 = df2.tail(1)
+        df3 = df2[(df['j20'] == 'j向上少于20') | (df['j20'] == 'j穿过20')]
+
+
+
+        #最后一天pEma26少于-3%，即股价少于ema26
+        dftemp = df2.tail(1)
+        pEma26 = dftemp['pEma26'].tolist()[0]
+
+        #上周周bar值为上升
+        dfWeek2 = dfWeek[-2:-1] #取倒数第二行
+        barKey_W = dfWeek2['barKey_W'].tolist()[0]
+        bTrend_W = dfWeek2['bTrend_W'].tolist()[0]
+        po_W = dfWeek2['po_W'].tolist()[0]
+
+        if df3.shape[0] > 0 :
+        # if df3.shape[0] > 0 and bTrend_W == '向下' :
+            dfAppend = dfAppend.append(df2)
+            # dfAppend = dfAppend.append(df2,ignore_index=True)
+
+
+        # print(df2)
+        # outPutXlsx(df2)
+        # exit()
+    print(dfAppend)
+    # outPutXlsx(dfAppend)
+
+    exit()
+
+    return
+
+#根据周线bar柱的切换来判断买入，卖出。具体买入：1）向下中高位时，bar值从下降转上升，2）向上低位（已过金叉），做好技术止损； 卖出位置：向上中/高位bar值从升变降。 具体操作时间看日线
+def buyPolicyBarChange(dfArray,StockName):
+    for df in dfArray:
+
+        dfWeek = df[['code', 'date_W', '增幅_W','bar_W','bTrend_W','po_W','barKey_W']]
+        dfWeek = dfWeek.drop_duplicates(subset=['date_W'], keep='last')  # 只保留每周最后一条记录
+
+        # 买入周
+        condition1 = ((dfWeek['barKey_W'].shift(1) == '1') | (dfWeek['barKey_W'].shift(1) == '-1')  ) & ((dfWeek['barKey_W'].shift(2) == '-0') | (dfWeek['barKey_W'].shift(2) == '0')) #从0切换1
+        condition2 = dfWeek['bTrend_W'] == ' ' #向下
+        condition3 = (dfWeek['po_W'] == '高') | (dfWeek['po_W'] == '中')
+        dfWeek['buy'] = np.where(condition1 & condition2 & condition3, 'buy', '') #向下中高位，0切换1的下一周标记为买入
+        count = dfWeek[dfWeek['buy'] == 'buy'].shape[0]
+        print('向下中高位0切换1的次数:' + str(count) )
+
+        dfWeek['增幅_W2'] = dfWeek['增幅_W'].str.strip("%").astype(float) / 100 #把增幅百分数变小数
+        count = dfWeek[ (dfWeek['增幅_W2']> 0) & (dfWeek['buy']  == 'buy')].shape[0]
+        # print('向下中高位0切换1买入周，增幅是正数:' + str(count[0]) )
+        print(dfWeek)
+        exit()
+
+        dfWeek['buy2'] = np.where( (dfWeek['bTrend_W'] == '向上') & condition1, 'buy', dfWeek['buy']) #向上低位
+        dfWeek['buy2'] = np.where( (dfWeek['bTrend_W'] == '向上') & condition1, 'buy', dfWeek['buy']) #向上低位
+
+
+
+
+        #卖出周
+        condition4 = ((dfWeek['barKey_W'].shift(1) == '0') | (dfWeek['barKey_W'].shift(1) == '-0')  ) & ((dfWeek['barKey_W'].shift(2) == '-1') | (dfWeek['barKey_W'].shift(2) == '1')) #从1切换0
+        dfWeek['sell'] = np.where(condition4 & (dfWeek['bTrend_W'] == '向上') & condition3, 'sell', '') #向上中高位
+
+        # dfWeek = dfWeek[dfWeek['sell'] == 'sell' or ]
+
+
+
+        temp = dfWeek[dfWeek['buy'] == 'buy'  ]
+        print(temp)
+        # dfWeek['follow2'] = np.where((dfWeek['barKey_W2'] == 1) & (dfWeek['barKey_W2'].shift(1) == 0),1,'')
+
+        #总购买次数
+        print('购买次数：' + str(temp.shape[0]))
+        #购买当周股价是上涨到次数
+        temp['增幅_W2'] = temp['增幅_W'].str.strip("%").astype(float) / 100
+        temp2 = temp[temp['增幅_W2'] > 0]
+        temp3 = temp[temp['增幅_W2'].shift(-1) > 0]
+        print('购买当周上涨的次数：'+ str(temp2.shape[0]) + '，胜率：' + str(temp2.shape[0]/temp.shape[0]))
+
+        #购买后第二周股价是上涨到次数
+        print('购买后第二周涨的次数：'+ str(temp3.shape[0]) )
+
+        exit()
+    return
+
+
+
+
+#根据macd Bar值趋势和长短周期的判断方法
+def buyPolicyMacdBarKey(dfArray,StockName):
+
+
+    #策略说明（回测）：
+        #0) 先找到确定到值：第1，2周下降，第3周上升，在根据第3周的日bar值来评估第4周是否上升。 （自己根据这些历史数据进行分析）
+        #1）预测bar值从下降趋势到转上升
+        #2）先计算周线bar连续两次下降的两周，然后再统计第二周日线最后两天数据是否上升（比如这两根日期是5日，6日）或者一周内有2天上升，若是上升就把该股票纳入下周观察名单。（如果下周预测没有上升，但实际上升就把这周纳入观察名单）
+            #注意：若此时周线处于向上高位，那么日线是否上升就意义不太。其他位置要注意观察日线连续上升，预示可能随时反转
+        #3）再看看6日的小时线后两根，若是上升，下周一上升可能性大，标记为潜在买入点。 （若预测没升，但实际升了，又把当天纳入观察名单）
+            #注意：
+        #4）到了9日收盘（7日8日是周末），再看看9日是否上升，若是就在看看9日的后两根小时线，若是，明天为潜在买点。
+        #5）重复以上操作，买点的开盘价买入
+
+    for df in dfArray:
+        df = df.drop([len(df)-1]) #把以前手工加的最后一行删除
+        dfWeek = df[['date', '增幅_W', 'barKey', 'date_W', '增幅_W', 'barKey_W']]
+        # print(dfWeek)
+        # exit()
+        dfWeek = dfWeek.drop_duplicates(subset=['date_W'], keep='last')  # 只保留每周最后一条记录
+        # df2 = df[['date','close', '增幅', 'bar', 'barKey','加分','减分','加分描述', '减分描述','date_W', '增幅_W', 'bar_W', 'barKey_W','加分_W','减分_W','加分描述_W', '减分描述_W',]]
+        # print(df2)
+        # outPutXlsx(df2)
+        # exit()
+
+
+
+        dfWeek = df[['date','增幅','barKey','date_W','增幅_W','barKey_W']]
+        # print(dfWeek)
+        # exit()
+        dfWeek = dfWeek.drop_duplicates(subset=['date_W'], keep='last')  #只保留每周最后一条记录
+        # dfWeek = dfWeek.dropna(axis=0, how='any')
+        dfWeek = dfWeek.dropna() #删除含有nan的行
+
+
+        dfWeek['barKey_W2'] = dfWeek['barKey_W']
+        dfWeek['barKey_W2'] =dfWeek['barKey_W2'].astype(int).abs() #读本地数据才要用，所以第一运行会报错
+        dfWeek['follow'] = np.where((dfWeek['barKey_W2'] == 1) & (dfWeek['barKey_W2'].shift(1) == 0) & (dfWeek['barKey_W2'].shift(2) == 0),1,'') #第1，2周是0，第3是1
+        dfWeek['follow2'] = np.where((dfWeek['barKey_W2'] == 1) & (dfWeek['barKey_W2'].shift(1) == 0),1,'')
+                # df["加分描述"] = np.where((df['bar'] > 0) , df['加分描述']+'', '')  # 两均线比较
+
+        df3= dfWeek.loc[(dfWeek['follow'] == '1')  ]
+        # print(df3.shape[0])
+
+        df2 = dfWeek.loc[(dfWeek['follow'] == '1') & (dfWeek['barKey_W2'].shift(-1) == 1) ] #第3周是1，第4周也是1
+        df4 = dfWeek.loc[(dfWeek['follow'] == '1') & (dfWeek['barKey_W2'].shift(-1)  != 1) ] #第3周是1，第4周不是1
+        # df2 = dfWeek.loc[dfWeek['follow'] == '1']
+        print('第1，2周是0，第3周是1，第4周也是1: ' + str(df2.shape[0]))
+        print(' #第1，2周是0，第3周是1，第4周不是1: ' + str(df4.shape[0]))
+
+        # print(df2)
+        # print(df4)
+        # exit()
+        #
+        # df = getScore(df)
+        # df2 = df[
+        #     ['date', '增幅', 'bar', 'bTrend', 'po', 'barKey', 'date_W', '增幅_W', 'bar_W', 'bTrend_W', 'po_W', 'barKey_W',
+        #      '加分', '减分', '加分描述', '减分描述']]
+        # print(df2)
+        # exit()
+
+        df2 = df[['date','bTrend','po','barKey','date_W','增幅_W','bar_W','bTrend_W','po_W','barKey_W']]
+
+
+    return
+
+
+ # 买策略：用kdj、ma100、日macd趋势、周macd趋势来识别买点
+def buyPolicyMacdKdj(dfArray,stockName):
+
+    #逐个股票测试，然后把测试结果合并
+    for df in dfArray:
+        df = df.drop([len(df)-1]) #把以前手工加的最后一行删除
+
+        #策略描述：
+         # 1）周线位置：周线向上，低位或中位。
+         # 2）日线Kdj的K向上，在50一下，接近50或穿过50； 在20一下
+
+        print(df)
+        # exit()
+        dfnew = df
+
+        dfnew['upC'] = dfnew['ema26'] * 1.04
+        dfnew['downC'] = dfnew['ema26'] * 0.96
+
+        # dfnew = df.loc[df['bTrend_W'] == '向上'] #周线向上
+        # dfnew = dfnew.loc[(df['po_W'] == '低') | (df['po_W'] == '中')]  #周线在低、中位置
+
+        # dfnew = dfnew.loc[((dfnew.bTrend == '向下') )]  #日线向上，日线向下并在高位
+
+        # dfnew = dfnew.loc[((dfnew['bTrend'] == '向下') & (dfnew['po'] == '高'))]  #日线向上，日线向下并在高位
+
+        dfnew = dfnew.loc[(dfnew['kTrend'] == 'k向上')  ]
+        dfnew = dfnew.loc[(dfnew.k50 == 'k穿过50') ]
+        # print(dfnew)
+        # exit()
+        # dfnew = dfnew.loc[(dfnew['jTrend'] == 'j向上')]
+        # dfnew = dfnew.loc[(dfnew['j50'] == 'j穿过50') ]
+
+        dfnew = dfnew.loc[(dfnew['大于ma110'] == '大于ma110') ]
+
+        # dfnew = dfnew.loc[(dfnew.k50 == 'k少于50') | (dfnew.k50 == 'k穿过50') ]
+
+        dfnew['buy'] = 0
+        dfnew = pd.merge(df, dfnew,how='left')  #合并 （把处理过的值何合入原来df）
+
+        #执行for循环到判断
+        for i in range(len(dfnew)):
+            if dfnew.at[i,'buy'] == 0:
+                # 买入  #第二天开盘价或收盘价买入，都可以回测一下
+                    #要加一个条件，如果涨停是买不入的！！！
+                buyDayId = i+1
+                if buyDayId == len(dfnew):
+                    break
+                priceBuy = dfnew.at[buyDayId,'close']
+                dfnew.at[buyDayId, 'buy'] = 1
+                dfnew.at[buyDayId,'priceBuy'] = priceBuy
+
+                #止损价计算，取过去10天最低价
+                indexStop =  dfnew.loc[i-10:buyDayId,'low'].idxmin() #最近10行k线最低价的索引
+                priceStop = dfnew.loc[i-10:buyDayId,'low'].min() #最近10行k线最低价
+
+                #卖出：买入后第二天开始计算，超过ema20的4%～6%的第二天收盘价卖出（这个价格不能低于买入价）
+                for x in range(1,1000):
+                    sellDayId = buyDayId+x
+                    upC = dfnew.at[sellDayId,'upC']
+                    low = dfnew.at[sellDayId,'low']
+                    high = dfnew.at[sellDayId,'high']
+                    #股价到达止损，即时卖出
+                        #这里加个条件，如果当天跌停，是卖不出去的！！！！！！
+                    if low < priceStop:
+                        dfnew.at[buyDayId,'sellDay'] = dfnew.at[sellDayId,'date']
+                        dfnew.at[buyDayId,'win'] = 0
+                        sellPrice = priceStop
+                        dfnew.at[buyDayId,'StopPriceDay'] = dfnew.at[indexStop,'date']
+                        dfnew.at[buyDayId,'sellPrice'] = sellPrice
+                        dfnew.at[buyDayId,'profit'] = sellPrice - priceBuy
+                        dfnew.at[buyDayId,'profitP'] = sellPrice/priceBuy - 1
+                        break
+                    else:
+                        if upC < high and dfnew.at[sellDayId+1,'close'] >  priceBuy: #超过通道后第二天收盘价卖出
+                            dfnew.at[buyDayId, 'sellDay'] = dfnew.at[sellDayId + 1,'date']
+                            dfnew.at[buyDayId, 'win'] = 1
+                            sellPrice = dfnew.at[sellDayId + 1,'close']
+                            dfnew.at[buyDayId, 'sellPrice'] = sellPrice
+                            dfnew.at[buyDayId, 'profit'] = sellPrice - priceBuy
+                            dfnew.at[buyDayId, 'profitP'] = sellPrice / priceBuy - 1
+                            break
+        # dfnew = dfnew.loc[(dfnew.buy == 0) | (dfnew.buy == 1)] #只显示触发购买相关的
+        # print(dfnew.head())
+        # print(df.columns.values.tolist())
+        # exit()
+
+
+        dfnew =  dfnew[[ 'code','bTrend_W', 'po_W', 'bNo_W', 'date', 'dw',  'close', '增幅', '大于ma110', '双向上', 'barHL',
+                  'bTrend', 'po', 'bNo', 'barRank', 'barRankP', 'k', 'kTrend', 'k50','upC','buy','sellDay','sellPrice','win','profitP','StopPriceDay']]
+
+
+        # 用一个单独函数来封装统计数据，方便日后调用和统计； 还有日后要通过循环参数（condition）变动跑策略，批量得到统计结果； 弄个测试用例，把各种情况做对比
+        # 统计资金占用时间，计算所用总资金、总盈利，计算得到平均每次交易所需时间，资金，盈利，得到单位时间到盈利率。用1000股计算吧
+        sta = getStatistic(dfnew,stockName)
+
+        # print(dfnew.loc[dfnew.win==1]) #显示赚钱
+        print(dfnew.loc[(dfnew.win==1) | (dfnew.win==0)]) #显示赚钱或亏钱
+
+        # print(dfnew)
+        # print(dfnew.loc[dfnew['buy']==1])
+        # print('结果有多少行：',dfnew.shape[0])
+
+
+        # print('ProfitPrecent：',dfnew.loc[dfnew.win==1,'profitP'].sum() + dfnew.loc[dfnew.win==0,'profitP'].sum())
+
+        # dfnew.to_excel("/Users/miketam/Downloads/checkPolicy.xls", encoding="gbk", index=False)
+        dfnew.to_excel('/Users/miketam/Downloads/checkPolicy.xlsx', float_format='%.5f',index=False)
+
+        exit()
+    return #返回回测结果
+
+
+def getStatistic(dfSource, stockName):
+    #用一个单独函数来封装统计数据，方便日后调用和统计； 还有日后要通过循环参数（condition）变动跑策略，批量得到统计结果； 弄个测试用例，把各种情况做对比
+
+    shares = 1000
+    #统计资金占用时间，计算所用总资金、总盈利，计算得到平均每次交易所需时间，资金，盈利，得到单位时间到盈利率。用1000股计算吧
+    df = dfSource.loc[dfSource.buy==1]
+        #用sellDay减去date可以得到持股时间段，然后把时间段累加得到总时间
+    start = pd.to_datetime(df['sellDay'])
+    end = pd.to_datetime(df['date'])
+    tradeDays = dfSource.shape[0]/250 * 365
+    tradeCount = df.shape[0] #交易次数（买+卖）
+    dfTime = pd.DataFrame(start - end,columns=['hTime'])
+    holdingTime = dfTime.sum().dt.days + tradeCount #累计持仓时间, 要在dfTime基础上，每次交易+1日才是每次持仓时间
+    # holdingTime = dfTime.sum().dt.days #累计持仓时间
+        #总资金、总盈利
+    tradeWin = df.loc[df.win==1].shape[0]
+    tradeWinPrecent = tradeWin/tradeCount
+    funds = df['close'].sum() * shares #总资金（假设每次购买1000股）
+    tax = funds * 0.0015 #每次买+卖到交易成本是0.0015
+    proift = (df['close'] * df['profitP'] * shares).sum() - tax #扣除税费后到总利润
+    avgFund = funds/tradeCount
+    avgProfit = proift / tradeCount
+    avgProfitPrecent =  avgProfit / avgFund #平均每次盈利百分比
+    avgHoldingTime = int(holdingTime / tradeCount) + 1 #每次交易持仓时间
+    profitPrecentYear = avgProfitPrecent * (365 / avgHoldingTime)
+
+    # df.at[i, '最低价/买入'] = format(df.at[i, 'low'] / buyPrice - 1, '.2%')
+
+
+    #形成文本
+    stockName = '股票名：' + df.iat[0,0]
+    tradeDays = '统计日数：' + str(int(tradeDays)) + '，持仓日数: ' + str(int(holdingTime))
+    tradeCount = '交易次数：' + str(tradeCount)
+    avgHoldingTime = '平均持仓时间：'  + str(avgHoldingTime)
+    tradeWin = '盈利次数：' + str(tradeWin) + ', 胜率：' + str(tradeWinPrecent)
+    funds = '总资金：' + str(int(funds))
+    tax = '总税费：' + str(int(tax))
+    proift = '扣税总收益：' + str(int(proift) )
+    avgFund = '平均交易金额：'  + str(int(avgFund) )
+    avgProfit = '平均交易利润(含亏损交易)：'  + str(int(avgProfit) )
+    avgProfitPrecent = '平均每次交易利润率：'   + str(format(avgProfitPrecent,'.2%') )
+    profitPrecentYear = '年化收益：'  + str(format(profitPrecentYear,'.2%') )
+
+    print(
+        stockName + '\n',
+        tradeDays + '\n',
+        tradeCount + '\n',
+        tradeWin + '\n',
+        tax + '\n',
+        proift + '\n',
+        avgFund + '\n',
+        avgProfit + '\n',
+        avgHoldingTime + '\n',
+        avgProfitPrecent + '\n',
+        profitPrecentYear + '\n',
+
+    )
+    # print(df)
+    # print(avgHoldingTime)
+    # exit()
+
+    return
+
+
+
+# 策略：用日macd的向下，向下趋势来判断买卖，重点是bar值方向
+def buyPolicyMacdTrend(i, df):
+
+    # 做判断，基于bar+dea来做买入卖出判断
+    # 买入判断：
+    # 1）dea向下、当天bar值排名30%内，明天买考虑买入（收盘价左右）
+    # 2）去掉短期波动：如果在一个周期内（现在到上一个H点），bar值没有达到过50%，就不买
+    # 3）出现买入信号，第二日收盘价买入
+
+    # 卖出判断：
+    # 1)dea向上，bar值在长时间排名30%，或本周期排名30%内，明天考虑卖出
+    # 2）当前卖出点向上找L点，如果barRank没有出现50%，就不卖
+    # 2）出现卖出信号，第二日收盘价卖出
+
+    # 问题：由于修改买入标志，卖出就更近，有问题。
+
+    # 买入判断：从数据开始的6个月后开始买入
+    if i > 125:
+        barRank = str2Float(df.at[i, 'barRank'])
+        deaTrend = df.at[i, 'deaTrend']
+        if barRank < 0.3:
+            # if barRank < 0.3 or barRankP < 0.3:
+            if deaTrend == '向下' or deaTrend == '向上,刚过L点':
+                df.at[i, 'buy'] = 'dea明天买入'
+
+                # 向上找最近一个H点，统计当前到H点这段时间点bar值，如果没有超过50%，就表明不适合买入
+                for x in range(1000):
+                    deaHL = df.at[i - x, 'deaHL']
+                    if deaHL == 'H':
+                        break
+                    barRankTemp = df.at[i - x, 'barRank']
+                    if str2Float(barRankTemp) > 0.5:
+                        df.at[i, 'buy2'] = 'dea买入(去波动)'
+
+        # 卖出判断：dea向上，bar值在长时间排名30%，或本周期排名30%内，明天考虑卖出。
+        # 找本周期到起点L（最近到L)
+        if deaTrend == '向上':
+            barRankP = str2Float(df.at[i, 'barRankP'])
+            key = 0
+            if barRank < 0.3 or barRankP < 0.3:
+                x = 0
+                while df.at[i - x, 'deaHL'] != 'L':  # 当前卖出点向上找L点，如果barRank没有出现50%，就不卖
+                    if str2Float(df.at[i - x, 'barRank']) > 0.5:
+                        key = 1
+                    x += 1
+            if barRank < 0.3 and key == 1:
+                df.at[i, 'sell'] = 'dea卖出'
+            if barRankP < 0.3 and key == 1:
+                df.at[i, 'sell2'] = 'dea卖出（短周期)'
+    return df
 
 
 
@@ -21,7 +507,7 @@ def getMacdTrend(i,df,value,trend):
             # if value2 == 'H' or value2 == 'L':
             #     if x > 0:
             #         array = []
-            #         value = getValueRank(i, df, 'bar', 'barRankPeriod', array, x,'middle')
+            #         value = getValueRank(i, df, 'bar', 'barRankP', array, x,'middle')
             #         df = value[0]
 
             if value2 == 'H':
@@ -101,7 +587,7 @@ def getDeaDifTrend(i,df,value,trend):
             #取本周内bar值排序,
             array = []
             m = x + 1
-            df = getValueRank(i+x, df, 'bar', 'barRankPeriod', array, m,'middle')[0]
+            df = getValueRank(i+x, df, 'bar', 'barRankP', array, m,'middle')[0]
             x += 1
 
     if temp == 'L':
@@ -115,7 +601,7 @@ def getDeaDifTrend(i,df,value,trend):
             #取本周内bar值排序,
             array = []
             m = x + 1
-            df = getValueRank(i+x, df, 'bar', 'barRankPeriod', array, m,'middle')[0]
+            df = getValueRank(i+x, df, 'bar', 'barRankP', array, m,'middle')[0]
             x += 1
 
     return df
@@ -220,64 +706,6 @@ def getValueRank(i,df,value,rank,array,row,label):
 #         #标记当当天的bar在bar数组是在什么位置，前20%？
 #         df.at[i, rank] = format(rankPrecent,'.2%')
 #     return [df, array]
-
-
-
-
-
-
-
-# 策略：用日macd的向下，向下趋势来判断买卖，重点是bar值方向
-def buyPolicyMacdTrend(i, df):
-
-    # 做判断，基于bar+dea来做买入卖出判断
-    # 买入判断：
-    # 1）dea向下、当天bar值排名30%内，明天买考虑买入（收盘价左右）
-    # 2）去掉短期波动：如果在一个周期内（现在到上一个H点），bar值没有达到过50%，就不买
-    # 3）出现买入信号，第二日收盘价买入
-
-    # 卖出判断：
-    # 1)dea向上，bar值在长时间排名30%，或本周期排名30%内，明天考虑卖出
-    # 2）当前卖出点向上找L点，如果barRank没有出现50%，就不卖
-    # 2）出现卖出信号，第二日收盘价卖出
-
-    # 问题：由于修改买入标志，卖出就更近，有问题。
-
-    # 买入判断：从数据开始的6个月后开始买入
-    if i > 125:
-        barRank = str2Float(df.at[i, 'barRank'])
-        deaTrend = df.at[i, 'deaTrend']
-        if barRank < 0.3:
-            # if barRank < 0.3 or barRankPeriod < 0.3:
-            if deaTrend == '向下' or deaTrend == '向上,刚过L点':
-                df.at[i, 'buy'] = 'dea明天买入'
-
-                # 向上找最近一个H点，统计当前到H点这段时间点bar值，如果没有超过50%，就表明不适合买入
-                for x in range(1000):
-                    deaHL = df.at[i - x, 'deaHL']
-                    if deaHL == 'H':
-                        break
-                    barRankTemp = df.at[i - x, 'barRank']
-                    if str2Float(barRankTemp) > 0.5:
-                        df.at[i, 'buy2'] = 'dea买入(去波动)'
-
-        # 卖出判断：dea向上，bar值在长时间排名30%，或本周期排名30%内，明天考虑卖出。
-        # 找本周期到起点L（最近到L)
-        if deaTrend == '向上':
-            barRankPeriod = str2Float(df.at[i, 'barRankPeriod'])
-            key = 0
-            if barRank < 0.3 or barRankPeriod < 0.3:
-                x = 0
-                while df.at[i - x, 'deaHL'] != 'L':  # 当前卖出点向上找L点，如果barRank没有出现50%，就不卖
-                    if str2Float(df.at[i - x, 'barRank']) > 0.5:
-                        key = 1
-                    x += 1
-            if barRank < 0.3 and key == 1:
-                df.at[i, 'sell'] = 'dea卖出'
-            if barRankPeriod < 0.3 and key == 1:
-                df.at[i, 'sell2'] = 'dea卖出（短周期)'
-    return df
-
 
 
 

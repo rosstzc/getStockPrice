@@ -17,6 +17,47 @@ pd.set_option('display.max_colwidth',130)
 pd.set_option('display.max_rows', None)
 
 
+def getHourData(kLineHourArray):
+    dfAppend: DataFrame = pd.DataFrame() #
+    for x in kLineHourArray:
+        df: DataFrame = pd.DataFrame(x)
+        df[2] = pd.to_numeric(df[2])  # 开盘价，把字符转化为数字
+        df[3] = pd.to_numeric(df[3])  # 最高价，把字符转化为数字
+        df[4] = pd.to_numeric(df[4])  # 最低价，把字符转化为数字
+        df[5] = pd.to_numeric(df[5])  # 收盘价，把字符转化为数字
+        # df["增幅"] = df[5]/df[5].shift() - 1
+        # df["增幅"] = df["增幅"].apply(lambda x: format(x, '.2%'))
+        # df['po'] = ''
+
+        df = getDfMacd(df) #获取macd
+        # df = getDfKdj(df)  #获取kdj
+
+        # #计算dea的向上、向下趋势
+        # index = len(df) #得到索引
+        # barHLidList = df.loc[(df.barHL == 'H') | (df.barHL == 'L')].index.tolist() #bar所有HL点的的行的索引
+        #
+        # for i in range(index):  #这个循环效率，日后可以优化
+        #     df = getDeaDifTrend(i, df, 'deaHL', 'deaTrend')  #计算bar值在本周期的百分比
+        #
+        #     # #估计bar值所在波形的位置
+        #     df = getBarPositionDf(barHLidList,df,i)
+        #     # print(df)
+        #     # exit()
+        #     df = getScore(df,i,'w')
+        # #
+        # # print(df[[0,'deaHL','deaTrend','barRankP','bar','barHL','bTrend','po','bNo']])
+        # # exit()
+
+        df.rename(columns={
+            0: 'date',
+            1: 'code',
+            2: 'open',
+            3: 'high',
+            4: 'low',
+            5: 'close',
+        }, inplace=True)
+        dfAppend = dfAppend.append(df)
+    return dfAppend
 
 
 
@@ -30,22 +71,15 @@ def getWeeklyData(kLineWeekArray):
         df[3] = pd.to_numeric(df[3])  # 最高价，把字符转化为数字
         df[4] = pd.to_numeric(df[4])  # 最低价，把字符转化为数字
         df[5] = pd.to_numeric(df[5])  # 收盘价，把字符转化为数字
+        df["增幅"] = df[5]/df[5].shift() - 1
+        df["增幅"] = df["增幅"].apply(lambda x: format(x, '.2%'))
+        df['po'] = ''
+
         df = getDfMacd(df) #获取macd
         df = getDfKdj(df)  #获取kdj
-        #计算dea的HL点
-        df['deaHL'] =  np.where((df['dea'] - df['dea'].shift(1) >= 0 )&(df['dea'] - df['dea'].shift(-1) >= 0 ),'H',df['dea'])
-        df['deaHL'] =  np.where((df['dea'] - df['dea'].shift(1) <= 0 )&(df['dea'] - df['dea'].shift(-1) <= 0 ),'L',df['deaHL'])
-        df['barHL'] =  np.where((df['bar'].shift(1) > 0)&(df['bar'] < 0 ),'H','')
-        df['barHL'] =  np.where((df['bar'].shift(1) < 0)&(df['bar'] > 0 ),'L',df['barHL'])
-
-        #计算bar的HL点
-        df['barHL'] =  np.where((df['bar'].shift(1) > 0)&(df['bar'] < 0 ),'H','')
-        df['barHL'] =  np.where((df['bar'].shift(1) < 0)&(df['bar'] > 0 ),'L',df['barHL'])
-        df['bTrend'] = np.where((df['bar'] > 0),'向上','向下')
-
 
         #计算dea的向上、向下趋势
-        index = len(df) - 1 #得到索引
+        index = len(df) #得到索引
         barHLidList = df.loc[(df.barHL == 'H') | (df.barHL == 'L')].index.tolist() #bar所有HL点的的行的索引
 
         for i in range(index):  #这个循环效率，日后可以优化
@@ -53,9 +87,11 @@ def getWeeklyData(kLineWeekArray):
 
             # #估计bar值所在波形的位置
             df = getBarPositionDf(barHLidList,df,i)
-
+            # print(df)
+            # exit()
+            df = getScore(df,i,'w')
         #
-        # print(df[[0,'deaHL','deaTrend','barRankPeriod','bar','barHL','bTrend','po','bNo']])
+        # print(df[[0,'deaHL','deaTrend','barRankP','bar','barHL','bTrend','po','bNo']])
         # exit()
 
         df.rename(columns={
@@ -107,8 +143,12 @@ def processKline(stockCodeArray, toFile = 1):
     #计算周线的各种数据，最后合并为一个大df
     dfWeekAppend:DataFrame = pd.DataFrame()
     kLineWeekArray = Kline[1] #周k线
-
     dfWeekAppend= getWeeklyData(kLineWeekArray)
+
+    #计算小时线的数据
+    kLineHourArray = Kline[2] #周k线
+    dfHourAppend= getHourData(kLineHourArray)
+
 
     #取出每个股票的k线数据，每个i代表1个股票的所有K线
     for x in kLineArray:
@@ -119,6 +159,13 @@ def processKline(stockCodeArray, toFile = 1):
         kLineDf[3] = pd.to_numeric(kLineDf[3])  # 最高价，把字符转化为数字
         kLineDf[4] = pd.to_numeric(kLineDf[4])  # 最低价，把字符转化为数字
         kLineDf[5] = pd.to_numeric(kLineDf[5])  # 收盘价，把字符转化为数字
+
+        # 把时间列标准化时间格式
+        kLineDf['dw'] = pd.to_datetime(kLineDf[0])
+        # 输出这一天是周中的第几天，Monday=0, Sunday=6
+        kLineDf['w'] = kLineDf['dw'].dt.isocalendar().week
+        kLineDf['dw'] = kLineDf['dw'].dt.dayofweek + 1
+
 
         kLineDf["增幅"] = kLineDf[5]/kLineDf[5].shift() - 1
         kLineDf["增幅"] = kLineDf["增幅"].apply(lambda x: format(x, '.2%'))
@@ -195,17 +242,18 @@ def processKline(stockCodeArray, toFile = 1):
         # # #MACD相关
         kLineDf = getDfMacd(kLineDf)
 
+
         #判断dif、dea波浪线高低点
         # kLineDf['difHL'] =  np.where((kLineDf['dif'] - kLineDf['dif'].shift(1) >= 0 )&(kLineDf['dif'] - kLineDf['dif'].shift(-1) >= 0 ),'H',kLineDf['dif'])
         # kLineDf['difHL'] =  np.where((kLineDf['dif'] - kLineDf['dif'].shift(1) <= 0 )&(kLineDf['dif'] - kLineDf['dif'].shift(-1) <= 0 ),'L',kLineDf['difHL'])
         kLineDf['deaHL'] =  np.where((kLineDf['dea'] - kLineDf['dea'].shift(1) >= 0 )&(kLineDf['dea'] - kLineDf['dea'].shift(-1) >= 0 ),'H',kLineDf['dea'])
         kLineDf['deaHL'] =  np.where((kLineDf['dea'] - kLineDf['dea'].shift(1) <= 0 )&(kLineDf['dea'] - kLineDf['dea'].shift(-1) <= 0 ),'L',kLineDf['deaHL'])
 
-        # 计算bar的HL点
-        kLineDf['barHL'] = np.where((kLineDf['bar'].shift(1) > 0) & (kLineDf['bar'] < 0), 'H', '')
-        kLineDf['barHL'] = np.where((kLineDf['bar'].shift(1) < 0) & (kLineDf['bar'] > 0), 'L', kLineDf['barHL'])
-        kLineDf['bTrend'] = np.where((kLineDf['bar'] > 0),'向上','向下')
-
+        # # 计算bar的HL点
+        # kLineDf['barHL'] = np.where((kLineDf['bar'].shift(1) > 0) & (kLineDf['bar'] < 0), 'H', '')
+        # kLineDf['barHL'] = np.where((kLineDf['bar'].shift(1) < 0) & (kLineDf['bar'] > 0), 'L', kLineDf['barHL'])
+        # kLineDf['bTrend'] = np.where((kLineDf['bar'] > 0),'向上','向下')
+        #
 
 
         #计算dea/price
@@ -342,7 +390,34 @@ def processKline(stockCodeArray, toFile = 1):
         # macd.to_csv("/Users/miketam/Downloads/processKline_macd.csv", encoding="gbk", index=False)
         # print(dfAppend)
         # dfAppend.to_excel('/Users/miketam/Downloads/processKline.xlsx', float_format='%.5f',index=False)
-    return [dfAppend,dfWeekAppend]
+    return [dfAppend,dfWeekAppend,dfHourAppend]
+
+def getHourKline(stockCodeArray, start_date, end_date):
+    klineHourArray = []
+    for i in stockCodeArray:
+        data_list = []
+        code = codeFormat(i)
+        rs = bs.query_history_k_data_plus(code,
+                                          # 0    1     2    3   4    5      6       7      8        9      10     11          12    13    14    15      16     17
+                                          # "date,code,open,high,low,close,preclose,volume,amount,adjustflag,turn,tradestatus,pctChg,peTTM,pbMRQ,psTTM,pcfNcfTTM,isST",
+                                          "date,code,open,high,low,close",
+                                          start_date=start_date, end_date=end_date,
+                                          frequency="60", adjustflag="2")
+        while (rs.error_code == '0') & rs.next():
+            # 获取一条记录，将记录合并在一起
+            data_list.append(rs.get_row_data())
+        # 去掉停牌的日期的数据
+        temp_list = []
+        for i in range(len(data_list)):
+            if data_list[i][5] != data_list[i - 1][5] or data_list[i][3] != data_list[i - 1][3] and i > 0:
+                temp_list.append(data_list[i])
+        data_list = temp_list
+        # df: DataFrame = pd.DataFrame(data_list)
+        # print(df)
+        # exit()
+        klineHourArray.append(data_list)
+    return klineHourArray
+
 
 #获取周K线，然后再计算周macd
 def getWeeklyKline(stockCodeArray, start_date, end_date):
@@ -420,28 +495,15 @@ def getOnlyKline(stockCodeArray,toFile=1,start_date='2018-01-06',end_date='2023-
     # 获取周K线数据
     KlineWeekArray = []
     KlineWeekArray = getWeeklyKline(stockCodeArray, start_date, end_date)
-
+    KlineHourArray = getHourKline(stockCodeArray, start_date, end_date)
 
     if toFile == 1:
         result.to_excel('/Users/miketam/Downloads/getOnlyKline.xlsx', float_format='%.5f', index=False)
         result.to_csv("/Users/miketam/Downloads/getOnlyKline.csv", encoding="gbk", index=False)
         # print(result)
-    return [klineArray, KlineWeekArray]
+    return [klineArray, KlineWeekArray, KlineHourArray]
 
 
-
-#为节约调试时所需时间，把数据放在本地
-def getFileOnLocal(stockCodeArray):
-    #在本地是否存在股票的csv文件，文件名为getOnlyKline_2_2020-12-20,中间数字为该次去股票的个数
-    today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
-    fileName = 'getOnlyKline_' + str(len(stockCodeArray)) + '_' + today + '.csv'
-    filePath = "/Users/miketam/Downloads/" + fileName
-    if os.path.exists('filePath'):
-        #从本地去
-        return
-    else:
-        #从服务器取
-        return
 
 
 #获取均线动态

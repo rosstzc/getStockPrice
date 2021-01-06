@@ -11,13 +11,61 @@ import time
 
 
 
-pd.set_option('display.width',210)
+pd.set_option('display.width',250)
 pd.set_option('display.max_columns',130)
 pd.set_option('display.max_colwidth',130)
 pd.set_option('display.max_rows', None)
 
-#策略测试
-def checkPolicy(stockCodeArray,toFile,stockNameArray):
+
+
+
+#交易策略
+def checkPolicy(stockCodeArray,stockName):
+
+    #判断本地是否有processFor处理后的文件，如果有直接读取； 否则调用processFor来生成文件导出到本地
+    dfArray = getFileOnLocal(stockCodeArray, stockName)
+
+    #检查kdj的J值，J值在20一下向上或上穿20，开始监控，日线周线的情况
+    result = buyPolicyKdjUp20(dfArray,stockName)
+
+
+    ##根据周线bar柱的切换来判断买入
+    result = buyPolicyBarChange(dfArray,stockName)
+
+    # 根据macd Bar值趋势和长短周期的判断方法
+    # result =  buyPolicyMacdBarKey(dfArray,stockName)
+
+    # 策略：用kdj、ma100、日macd趋势、周macd趋势来识别买点
+    # result = buyPolicyMacdKdj(dfArray,stockName)
+
+
+
+    return
+
+#为节约调试时所需时间，把数据放在本地
+def getFileOnLocal(stockCodeArray, stockName):
+    #在本地是否存在股票的csv文件，文件名为getOnlyKline_2_2020-12-20,中间数字为该次去股票的个数
+    today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
+    fileType = 'processFor'
+    if len(stockCodeArray) == 1:
+        fileName = fileType + '_' + stockCodeArray[0] + '_' + today
+        # fileName = fileType + '_' + stockCodeArray[0] + '_' + today + '.csv'
+    else:
+        fileName = fileType + '_' + str(len(stockCodeArray)) + '_' + today
+        # fileName = fileType + '_' + str(len(stockCodeArray)) + '_' + today + '.csv'
+    filePath = "/Users/miketam/Downloads/" + fileName
+    if os.path.exists(filePath+'.csv'):
+        #从本地去
+        df = pd.read_csv(filePath + '.csv',sep=',',encoding="gb2312", dtype={'barKey': str,'barKey_W':str})
+    else:
+        df = processFor(stockCodeArray,1,stockName,filePath)
+
+    dfArray = dfDivide(stockCodeArray,df)
+    return dfArray
+
+
+#数据处理，主要通过for循环来处理数据
+def processFor(stockCodeArray, toFile, stockNameArray, filePath):
 
     # tis1 = time.perf_counter()
     #
@@ -37,8 +85,8 @@ def checkPolicy(stockCodeArray,toFile,stockNameArray):
         for df in dfArray:
             # if abs(str2Float(df.at[-2,'barRank'])) < 0.4 or abs(str2Float(df.at[-3,'barRank']))< 0.4 or abs(str2Float(df.at[-4,'barRank'])) < 0.4:
             if abs(str2Float(df.iloc[-2]['barRank'])) < rank or abs(str2Float(df.iloc[-3]['barRank']))< rank:
-                # print(df[['date', 'close', '增幅', 'ma10', 'Cma10', 'ma5动态', 'ma10动态', '双向上', 'barRank', 'barRankPeriod','deaHL', 'deaTrend', 'deaPRank', 'deaGTS', 'deaGPRank', 'buy2', 'sell', 'sell2']])
-                df = df[['code','date', 'close', '增幅', 'ma10', 'Cma10', 'ma5动态', 'ma10动态', '双向上', 'barRank', 'barRankPeriod','deaHL', 'deaTrend', 'deaPRank', 'deaGTS', 'deaGPRank', 'buy2', 'sell', 'sell2']]
+                # print(df[['date', 'close', '增幅', 'ma10', 'Cma10', 'ma5动态', 'ma10动态', '双向上', 'barRank', 'barRankP','deaHL', 'deaTrend', 'deaPRank', 'deaGTS', 'deaGPRank', 'buy2', 'sell', 'sell2']])
+                df = df[['code','date', 'close', '增幅', 'ma10', 'Cma10', 'ma5动态', 'ma10动态', '双向上', 'barRank', 'barRankP','deaHL', 'deaTrend', 'deaPRank', 'deaGTS', 'deaGPRank', 'buy2', 'sell', 'sell2']]
                 code = df.iloc[-2]['code']
                 stockName = stockNameArray[x]
                 url = '/Users/miketam/Downloads/checkPolicy/'+ code + '.csv'
@@ -58,8 +106,10 @@ def checkPolicy(stockCodeArray,toFile,stockNameArray):
 
     dfday = dfKline[0] #取日线数据
     dfweek = dfKline[1] #取周线数据
+    dfhour = dfKline[2]
     dfDayArray = dfDivide(stockCodeArray,dfday) #把df拆分，每个股票一个df
     dfweekArray = dfDivide(stockCodeArray,dfweek) #把df拆分，每个股票一个df
+    dfhourArray = dfDivide(stockCodeArray,dfhour) #把df拆分，每个股票一个df
 
     resultArray = []
     dfAppend: DataFrame = pd.DataFrame()
@@ -68,6 +118,8 @@ def checkPolicy(stockCodeArray,toFile,stockNameArray):
     for x in range(len(dfDayArray)):
         df = dfDayArray[x]
         dfweek = dfweekArray[x]
+        dfhour = dfhourArray[x]
+        df['po'] = ''
 
         #计算周数据在日表到列位置 （方便后续引用）
         weekDataBegin = df.shape[1]
@@ -128,66 +180,70 @@ def checkPolicy(stockCodeArray,toFile,stockNameArray):
         index = len(df) - 1 #得到索引,减1是因为之前增加一个不规则的行数据
         barHLidList = df.loc[(df.barHL == 'H') | (df.barHL == 'L')].index.tolist() #bar所有HL点的的行的索引
 
-        #这个循环效率，日后可以优化
 
+        #这个循环效率，日后可以优化
         for i in range(index):
             code = df.at[0,'code']
 
 
             # #估计bar值所在波形的位置
             df = getBarPositionDf(barHLidList,df,i)  #里面的describe函数很慢
-
-
-            #识别当前点的DEA、dif是向上或向下
-            # df = getMacdTrend(i,df,'deaHL','deaTrend')
-            # df = getMacdTrend(i,df,'difHL','difTrend')
-            df = getDeaDifTrend(i,df,'deaHL','deaTrend') #里面rank值是本周期内(bar值周期内排序在里面）
-            # df = getDeaDifTrend(i,df,'difHL','difTrend')
-
-
-            #处理bar值的半年排序
-            value = getValueRank(i,df,'bar','barRank',array,250,'start')
-            df = value[0]
-            array =value[1]
-
-            # 处理dea/Price的排序
-            value = getValueRank(i,df,'deaP','deaPRank',array3, 250,'start')
-            df = value[0]
-            array3 =value[1]
-
-
-            #处理deaGrowth/Price的排序
-            value = getValueRank(i,df,'deaGP','deaGPRank',array2, 250,'start')
-            df = value[0]
-            array2 =value[1]
+            #计算得分
+            df = getScore(df,i,'d')
 
 
 
-            #处理deaGrowth/Price的排序
-            value = getValueRank(i,df,'dea','deaRank',array2, 250,'start')
-            df = value[0]
-            array4 =value[1]
+            # #识别当前点的DEA、dif是向上或向下
+            # # df = getMacdTrend(i,df,'deaHL','deaTrend')
+            # # df = getMacdTrend(i,df,'difHL','difTrend')
+            # df = getDeaDifTrend(i,df,'deaHL','deaTrend') #里面rank值是本周期内(bar值周期内排序在里面）
+            # # df = getDeaDifTrend(i,df,'difHL','difTrend')
+            #
+            #
+            # #处理bar值的半年排序
+            # value = getValueRank(i,df,'bar','barRank',array,250,'start')
+            # df = value[0]
+            # array =value[1]
+            #
+            # # 处理dea/Price的排序
+            # value = getValueRank(i,df,'deaP','deaPRank',array3, 250,'start')
+            # df = value[0]
+            # array3 =value[1]
+            #
+            #
+            # #处理deaGrowth/Price的排序
+            # value = getValueRank(i,df,'deaGP','deaGPRank',array2, 250,'start')
+            # df = value[0]
+            # array2 =value[1]
+            #
+            #
+            #
+            # #处理deaGrowth/Price的排序
+            # value = getValueRank(i,df,'dea','deaRank',array2, 250,'start')
+            # df = value[0]
+            # array4 =value[1]
+            #
+            # #识别dea增量趋势、dif增量趋势
+            # temp = []
+            # if i > 2:
+            #     for x in range(-2,1):
+            #         temp.append(abs(df.at[i+x,'deaGrowth']))
+            #     df.at[i, 'deaGrowthTrend'] = trendline(temp)
+            #     if trendline(temp) > 0:
+            #         df.at[i, 'deaGTS'] = '加速'
+            #     else:
+            #         df.at[i, 'deaGTS'] = ''
+            #
+            # temp = []
+            # if i > 2:
+            #     for x in range(-2,1):
+            #         temp.append(abs(df.at[i+x,'difGrowth']))
+            #     df.at[i, 'difGrowthTrend'] = trendline(temp)
+            #     if trendline(temp) > 0:
+            #         df.at[i, 'difGTS'] = '加速'
+            #     else:
+            #         df.at[i, 'difGTS'] = ''
 
-            #识别dea增量趋势、dif增量趋势
-            temp = []
-            if i > 2:
-                for x in range(-2,1):
-                    temp.append(abs(df.at[i+x,'deaGrowth']))
-                df.at[i, 'deaGrowthTrend'] = trendline(temp)
-                if trendline(temp) > 0:
-                    df.at[i, 'deaGTS'] = '加速'
-                else:
-                    df.at[i, 'deaGTS'] = ''
-
-            temp = []
-            if i > 2:
-                for x in range(-2,1):
-                    temp.append(abs(df.at[i+x,'difGrowth']))
-                df.at[i, 'difGrowthTrend'] = trendline(temp)
-                if trendline(temp) > 0:
-                    df.at[i, 'difGTS'] = '加速'
-                else:
-                    df.at[i, 'difGTS'] = ''
 
 
             # 把周线数据写入日线列表
@@ -198,11 +254,13 @@ def checkPolicy(stockCodeArray,toFile,stockNameArray):
                 # df.loc[i, columnNameList[0]:columnNameList[len(columnNameList) - 1]] = dfweek.iloc[p]
                 df.iloc[i, weekDataBegin:weekDataEnd] = dfweek.iloc[p]  #上行也可以，差别只是定位方式不一样
 
+            #把小时线数据写入列表
+
+
 
             #买策略：利用macd到dea和bar的高点变化来给出买点
-            df = buyPolicyMacdTrend(i, df)
+            # df = buyPolicyMacdTrend(i, df)
 
-            #买策略：用kdj、ma100、日macd趋势、周macd趋势来识别买点
 
 
             #买入策略：利用ma双向上来判断
@@ -231,6 +289,10 @@ def checkPolicy(stockCodeArray,toFile,stockNameArray):
         # print(list(df))
         # print(df.head())
 
+
+
+
+
         resultStr = '股票：' +code + '，购买次数：' + str(buycount)  + "，盈利次数：" + str(wincount) + "，亏损次数：" + str(losscount),'因macd少盈利：' + str(winReduce) +\
                  ', 因macd少亏损：' + str(lossReduce) + ', 实际盈利：'+ str(wincount-winReduce) + ', 实际亏损：' + str(losscount - lossReduce)
         resultArray.append(resultStr)
@@ -238,18 +300,22 @@ def checkPolicy(stockCodeArray,toFile,stockNameArray):
 
         # print(df[['date','bar','barRank','deaHL','deaTrend','difHL','difTrend']])
         # print(df[['date','bar','barRank','deaHL','dea','deaTrend','deaGrowthTrend','deaGrowthTrendSign','deaGP','deaGPRank','deaPRank']])
-        # print(df[['date','close','bar','barRank','barRankPeriod','deaHL','deaTrend','difHL','difTrend','difGrowthTrend','difGrowthTrendSign','deaGP','deaGPRank','deaPRank','buy','buy2','sell','sell2']])
+        # print(df[['date','close','bar','barRank','barRankP','deaHL','deaTrend','difHL','difTrend','difGrowthTrend','difGrowthTrendSign','deaGP','deaGPRank','deaPRank','buy','buy2','sell','sell2']])
         # print(df[['date','bar','barRank','deaHL','deaTrend','difHL','difTrend','difGrowth','difGP','deaGrowth','deaGrowthTrend','deaGP']])
 
-        # print(df[['date','close','增幅','大于ma110','双向上','barRank','barRankPeriod','deaHL','deaTrend','deaPRank','deaGTS','deaGPRank','k','kTrend','k50','buy2','sell','sell2']])
+        # print(df[['date','close','增幅','大于ma110','双向上','barRank','barRankP','deaHL','deaTrend','deaPRank','deaGTS','deaGPRank','k','kTrend','k50','buy2','sell','sell2']])
         # print(df[['date','close','k','d']])
-        print(df[['barHL_W','bTrend_W','po_W','bNo_W','date','close','增幅','大于ma110','双向上','barHL','bTrend','po','bNo','barRank','barRankPeriod','k','kTrend','k50','buy2','sell','sell2']])
-        exit()
-        # print(df[[0,'deaHL','deaTrend','barRankPeriod','bar','barHL','bTrend','po','bNo']])
+        # print(df[['barHL_W','bTrend_W','po_W','bNo_W','date','close','增幅','大于ma110','双向上','barHL','bTrend','po','bNo','barRank','barRankP','k','kTrend','k50','buy2','sell','sell2']])
+        # print(df[['barHL_W','bTrend_W','po_W','bNo_W','date','dw','w','close','增幅','大于ma110','双向上','barHL','bTrend','po','bNo','barRank','barRankP','k','kTrend','k50','buy2','sell','sell2']])
+        # exit()
+        # print(df[[0,'deaHL','deaTrend','barRankP','bar','barHL','bTrend','po','bNo']])
 
-    dfAppend.to_csv("/Users/miketam/Downloads/checkPolicy.csv", encoding="gbk", index=False)
-    dfAppend.to_excel('/Users/miketam/Downloads/checkPolicy.xlsx', float_format='%.5f',index=False)
-
+    path = filePath
+    dfAppend.to_csv(path + ".csv", encoding="gbk", index=False)
+    dfAppend.to_excel(path + '.xlsx', float_format='%.5f',index=False)
+    # dfAppend.to_csv("/Users/miketam/Downloads/checkPolicy.csv", encoding="gbk", index=False)
+    # dfAppend.to_excel('/Users/miketam/Downloads/checkPolicy.xlsx', float_format='%.5f',index=False)
+    return dfAppend
     # for i in resultArray:
     #     print(i)
     # print(dfAppend.dtypes)

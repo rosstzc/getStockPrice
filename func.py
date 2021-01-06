@@ -3,9 +3,15 @@ import pandas as pd
 import openpyxl
 import numpy as np
 import time
+import os
 from pandas import DataFrame
-
+# from checkPolicy import *
 from multiprocessing import Process
+
+
+
+
+
 
 
 #估计bar值所在波形的低、中、高位置, 逐行更新df
@@ -14,6 +20,9 @@ def getBarPositionDf(barHLidList,df,i):
     # 找当前bar到前面bar的H或L点的所有行组成数组，然后找到最近H/L点
     barHLidListTemp = barHLidList[:]  # 复制一份，不修改原始数据
     # 判断i点自己是否是HL点,若是就不用找上一个HL点
+    if i == 149:
+        tt =1
+
     if i in barHLidListTemp:
         df.at[i, 'po'] = '低'
         df.at[i, 'bNo'] = 1
@@ -22,8 +31,8 @@ def getBarPositionDf(barHLidList,df,i):
         barHLidListTemp.sort(key=int)
         index2 = barHLidListTemp.index(i)  # index等于0，表明i行前面没有HL点
         if index2 > 0:
-            deaHLid = barHLidListTemp[index2 - 1]  # 找到该HL点的索引
-            dfRow = df.loc[deaHLid:i, :]  # HL点到i点的所有行
+            barHLid = barHLidListTemp[index2 - 1]  # 找到该HL点的索引
+            dfRow = df.loc[barHLid:i, :]  # HL点到i点的所有行
             barArray = dfRow['bar'].reset_index(drop=True)  # 只取bar值，并且重建索引
 
             p = getBarPosition(barArray)
@@ -68,30 +77,30 @@ def getBarPosition(aSeries):
 
     bigger = biggerThanBefore(aSeries)
     if count <= 2:
-        position = '低'
+        position = '1'
     else:
         if bigger == True and count <= 3:
-            position = '低'
+            position = '1'
 
         #判断位置"中"
             # 1）之前bar值并非逐个增大，当前bar值属于前1 / 3
             # 2）当前bar值非最大值，上一个是最大值
             # 3）bar值当前为最大值，之前所有bar值逐个增大，bar但根数 > 4
         if bigger == False and now > range75:
-            position = '中'
+            position = '2'
         if now != max and aSeries[nowId-1] == max:
-            position = '中'
+            position = '2'
         if now == max and bigger == True and count >= 4:
-            position = '中'
+            position = '2'
 
         #判断位置"高"
             # 1）当前bar非最大值，上一个bar值比当前大（但不是最大值）, 当前bar不属于前1 / 3
             # 2）当前bar值和前两个bar值是依次降低
         if bigger != max and  aSeries[nowId-1] > now and aSeries[nowId-1] != max and now < range75:
-            position = '高'
+            position = '3'
 
         if nowId > 1 and aSeries[nowId-2] > aSeries[nowId-1] and aSeries[nowId-1] > now:
-            position = '高'
+            position = '3'
     return position
 
 #计算Kdj
@@ -109,14 +118,24 @@ def getDfKdj(kLineDf):
 
     #k是否向上，比上一值大
     kLineDf['kTrend'] = np.where(kLineDf['k'] > kLineDf['k'].shift(+1),"k向上","")
+    kLineDf['jTrend'] = np.where(kLineDf['j'] > kLineDf['j'].shift(+1),"j向上","")
     #k值是否大于30少于50
     kLineDf['k50'] = np.where(kLineDf['k'] <= 25,"k少于25","")
     kLineDf['k50'] = np.where((kLineDf['k'] > 25) & (kLineDf['k'] <= 50),"k少于50",kLineDf['k50'])
     # kLineDf['k50'] = np.where( (kLineDf['k'] > 50) & (kLineDf['kTrend']=='k向上'),"k穿过50",kLineDf['k50'])
-    kLineDf['k50'] = np.where((kLineDf['k'].shift(+1) < 50) & (kLineDf['k'] > 50) & (kLineDf['kTrend']=='k向上'),"k穿过50",kLineDf['k50'])
+    kLineDf['k50'] = np.where((kLineDf['k'].shift(+1) < 50) & (kLineDf['k'] > 50) & (kLineDf['kTrend']=='k向上'),"k穿过50", kLineDf['k50'])
+
+    #j值少于20并向上
+    kLineDf['j20'] = np.where((kLineDf['j'] < 20) & (kLineDf['jTrend']=='j向上'),"j向上少于20", '')
+    #j值上穿20
+    kLineDf['j20'] = np.where((kLineDf['j'].shift(+1) < 20) & (kLineDf['j'] > 20) & (kLineDf['jTrend']=='j向上'),"j穿过20", kLineDf['j20'])
 
 
     return kLineDf
+
+
+def outPutXlsx(df):
+    df.to_excel('/Users/miketam/Downloads/temp.xlsx', float_format='%.5f',index=False)
 
 
 #在df计算macd
@@ -137,6 +156,30 @@ def getDfMacd(df2):
     df2['dif'] = dif  # 快
     df2['dea'] = deaa  # 慢
     df2['bar'] = bar  # 柱状
+
+    df = df2
+    # 计算dea的HL点
+    df['deaHL'] = np.where((df['dea'] - df['dea'].shift(1) >= 0) & (df['dea'] - df['dea'].shift(-1) >= 0), 'H',
+                           df['dea'])
+    df['deaHL'] = np.where((df['dea'] - df['dea'].shift(1) <= 0) & (df['dea'] - df['dea'].shift(-1) <= 0), 'L',
+                           df['deaHL'])
+    df['barHL'] = np.where((df['bar'].shift(1) > 0) & (df['bar'] < 0), 'H', '')
+    df['barHL'] = np.where((df['bar'].shift(1) < 0) & (df['bar'] > 0), 'L', df['barHL'])
+
+    # 计算bar的HL点
+    df['barHL'] = np.where((df['bar'].shift(1) > 0) & (df['bar'] < 0), 'H', '')
+    df['barHL'] = np.where((df['bar'].shift(1) < 0) & (df['bar'] > 0), 'L', df['barHL'])
+    df['bTrend'] = np.where((df['bar'] > 0), '向上', ' ')
+
+    # 计算bar值对比前一日是增加还是减少，用0/1, -1/-0 来表示
+    df['barKey'] = np.where((df['bar'].shift(1) > 0) & (df['bar'] > 0) & (df['bar'] > df['bar'].shift(1)), '1', '')
+    df['barKey'] = np.where((df['bar'].shift(1) > 0) & (df['bar'] > 0) & (df['bar'] < df['bar'].shift(1)), '0',df['barKey'])
+    df['barKey'] = np.where((df['bar'].shift(1) < 0) & (df['bar'] > 0), '1',df['barKey'])
+
+    df['barKey'] = np.where((df['bar'].shift(1) < 0) & (df['bar'] < 0) & (df['bar'] > df['bar'].shift(1)), '-1',df['barKey'])
+    df['barKey'] = np.where((df['bar'].shift(1) < 0) & (df['bar'] < 0) & (df['bar'] < df['bar'].shift(1)), '-0',df['barKey'])
+    df['barKey'] = np.where((df['bar'].shift(1) > 0) & (df['bar'] < 0), '0', df['barKey'])
+
     return df2
 
 #把日期字符串转化为年份周，如2018-2， 表示2018年第二周
