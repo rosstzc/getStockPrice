@@ -6,6 +6,9 @@ from pandas import DataFrame
 import matplotlib.pyplot as plt
 from func import *
 
+
+
+
 #计算某天或某周都投资价值积分
 def getScore(df, i, period):
     #加分、扣分、得分，分值描述
@@ -94,14 +97,304 @@ def getScore(df, i, period):
 
     return df
 
+#取K线数据
+def getKline(dfArray,stockName):
+    dfAppend: DataFrame = pd.DataFrame() #
+    #把所有df合并
+    x = 0
+    for df in dfArray:
+        if len(stockName) > 1:
+            df['code'] = df['code'] +'.' +stockName[x]
+        df = df[['code', 'date','high','low', 'close', '增幅', 'bar', 'bTrend', 'po', 'barKey', 'ema12Trend','脉冲系统','barKeyCh','ema26','upCFactor', 'upC','downC','c/ema26','c/Channel','lossStop','lossStop2']]
+        df = df.iloc[::-1] #倒序，让最近排在前面
+        dfAppend = dfAppend.append(df.head(110))
+        x = x + 1
 
+    name = '日数据：股票最近K线数据'
+    today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
+    name = name+ '-' +str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend, name)
+
+    # print(dfAppend)
+    return dfAppend
+
+#在周线找股价偏离ema26比较大的股票, 1)但ema12向上，偏离排名。 2）当barKey为1，偏离排名。
+def getWeekPriceDifEma26(dfArray, stockName):
+
+    dfAppend: DataFrame = pd.DataFrame() #
+    dfAppend2: DataFrame = pd.DataFrame() #
+    #把所有df合并
+    x = 0
+    for df in dfArray:
+        if len(stockName) > 1:
+            df['code'] = df['code'] +'.' +stockName[x]
+        df = df[['code', 'date','high','low', 'close', '增幅', 'bar', 'bTrend', 'po', 'barKey', 'ema12Trend','脉冲系统','barKeyCh','ema26','upCFactor', 'upC','downC','c/ema26','c/Channel','lossStop','lossStop2']]
+        dfAppend = dfAppend.append(df)
+        x = x + 1
+
+    # 从"平安银行"取交易日期列表
+    dateArray = dfArray[0]['date'].values.tolist()
+    dateArray.reverse()
+
+    # 根据日期，把每周所有股票的数据形成一个df，根据barKeyCh次数来排名
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        # 给df排序（barKeyCh高当排在前面）
+        df2['barKeyCh'].fillna(0, inplace=True)
+        df3 = df2.sort_values(by=['barKeyCh'], ascending=False)
+        df3['排序'] = range(len(df3)) #增加一列序号，从0开始
+        # 每个df只取每天20个数据
+        # 把df组合为大dfAppend
+        dfAppend2 = dfAppend2.append(df3.head(50))
+    # 验证是否靠谱
+    # print(dfAppend2)
+    name = '周数据：0线下bar转变次数排序'
+    today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
+    name = name+ '-' +str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2,name)
+
+    #脉冲系统第一次出现做多
+
+    #向下偏离最大的股票，寻找回调机会
+
+    #当ema
+
+
+    #当ema12向上，取向上偏离ema12，目标寻找哪些上升过程回调的股票
+    dfAppend2: DataFrame = pd.DataFrame() #重置df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        condition1 = df2['ema12Trend'] == 'up'
+        condition2 = df2['c/ema26'] > 0
+        df2 = df2[condition1 & condition2]
+        df3 = df2.sort_values(by=['c/ema26'], ascending=True) #按照偏离程度来排序
+        df3['排序'] = range(len(df3)) #增加一列序号，从0开始
+        dfAppend2 = dfAppend2.append(df3.head(50))
+    print(dfAppend2)
+
+    name = '周数据：当ema26向上，取向下偏离ema最大的股票'
+    today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
+    name = name+ '-' +str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2,name)
+    exit()
+
+
+    #当ema26向上，取价格偏离ema26正负10%, 或者通道值。
+    dfAppend2: DataFrame = pd.DataFrame() #重置df
+    dfAppend['c/Channel2'] = abs(dfAppend['c/Channel'])  # 把偏离通道比如修改为正数，并且用新列承载
+    dfAppend['c/ema26_2'] = abs(dfAppend['c/ema26'])  # 把偏离通道比如修改为正数，并且用新列承载
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        # condition1 = df2['ema26'] > df2['ema26'].shift(1)  这里是错的
+        condition2 = abs(df2['c/ema26_2']) < 0.1
+        df2 = df2[condition1 & condition2]
+        df3 = df2.sort_values(by=['c/ema26_2'], ascending=False) #按照偏离程度来排序
+        df3['排序'] = range(len(df3)) #增加一列序号，从0开始
+        dfAppend2 = dfAppend2.append(df3.head(50))
+    print(dfAppend2)
+
+    name = '周数据：当ema26向上，取价格偏离ema26正负10%'
+    today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
+    name = name+ '-' +str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2,name)
+    exit()
+
+
+    #当ema12向上，根据股价偏离ema26来排序
+    dfAppend2: DataFrame = pd.DataFrame() #重置df
+    dfAppend['c/Channel2'] = abs(dfAppend['c/Channel'])  # 把偏离通道比如修改为正数，并且用新列承载
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        # df2 = df2[df2['ema12Trend'] == 'up']
+        df3 = df2.sort_values(by=['c/Channel2'], ascending=False) #按照偏离程度来排序
+        df3['排序'] = range(len(df3)) #增加一列序号，从0开始
+        dfAppend2 = dfAppend2.append(df3.head(50))
+
+    name = '周数据：ema12向上时的股价偏离通道排序'
+    today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
+    name = name+ '-' +str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2,name)
+
+
+    #当barKey为1，根据股票偏离ema26来排序
+
+
+    #当ema12向上，barKey为1，根据股价偏离ema26来排序
+
+
+    return dfAppend2
+
+
+ #当bar为负，找某周哪些假向上最多当股票，给他们排序，看看排前面转真向上的概率是不是大些
+# def getBarChangeMaxStockWeekly(dfArray,stockName):
+#
+#     dfAppend: DataFrame = pd.DataFrame() #
+#     dfAppend2: DataFrame = pd.DataFrame() #
+#     #把所有df合并
+#     x = 0
+#     for df in dfArray:
+#         if len(stockName) > 1:
+#             df['code'] = df['code'] +'.' +stockName[x]
+#         df['ema12Trend'] = np.where(df['ema12'] >df['ema12'].shift(1),'up','down' )
+#         condition = (df['barKey'] == '1') | (df['barKey'] == '-1')
+#         df['脉冲系统'] = np.where((df['ema12Trend'] == 'up') & condition,'买入','')
+#         df = df[
+#             ['code', 'date','high','low', 'close', '增幅', 'bar', 'bTrend', 'po', 'barKey', 'ema12Trend','脉冲系统','barKeyCh','ema26','upCFactor', 'upC','downC','lossStop','lossStop2','bTrend_W', 'po_W','barKey_W']]
+#         df = df.drop([len(df) - 1])  # 把以前手工加的最后一行删除
+#         dfAppend = dfAppend.append(df)
+#         x = x + 1
+#
+#     # 从"平安银行"取交易日期列表
+#     dfArray[0] = dfArray[0].drop([len(dfArray[0]) - 1])
+#     dateArray = dfArray[0]['date'].values.tolist()
+#
+#     # 根据日期，把每周所有股票的数据形成一个df
+#     for i in dateArray:
+#         df2 = dfAppend[(dfAppend['date'] == i)].copy()
+#         # 给df排序（barKeyCh高当排在前面）
+#         df2['barKeyCh'].fillna(0, inplace=True)
+#         df3 = df2.sort_values(by=['barKeyCh'], ascending=False)
+#         df3['barKeyChRank'] = range(len(df3))
+#         # 每个df只取每天20个数据
+#         # 把df组合为大dfAppend
+#         dfAppend2 = dfAppend2.append(df3.head(50))
+#
+#     # 验证是否靠谱
+#     print(dfAppend2)
+#     outPutXlsx(dfAppend2)
+#     exit()
+#     return
+
+
+ #当bar为负，找某天哪些假向上最多当股票，给他们排序，看看排前面转真向上的概率是不是大些
+
+#验证在止损价位置买入
+def buyPolicyLossStop(dfArray,stockName):
+
+    for df in dfArray:
+        df['readyPrice'] = ''
+        df['buy'] = ''
+        df['sell'] = ''
+        df['win'] = ''
+
+        df['穿过止损'] = np.where(df['low'] < df['lossStop2'],'1','')
+        closePriceArray = df['high'].values
+        buyPrice = 0
+        buyState = 0
+        readyPrice = 0
+        for i in range(len(df)):
+            if i == 661:
+                ddf= 11
+            #计算止损点左边的阶段最高收盘价
+            if df.at[i,'穿过止损'] == '1' and i > 3:
+                for x in range(0,1000):
+                    previous1 = closePriceArray[i-x-1]
+                    previous2 = closePriceArray[i-x-2]
+                    previous3 = closePriceArray[i-x-3]
+                    if previous2 > previous1 and  previous2 > previous3: #找左边最近的阶段最高收盘价
+                        readyPrice = previous2
+                        df.at[i,'readyPrice'] = readyPrice
+                        break
+                    x = x + 1
+                #如果之前有买入，那么今天就卖出
+                if buyState == 1:
+                    df.at[i,'sell'] = df.at[i,'lossStop2']
+                    if df.at[i,'sell'] > buyPrice:
+                        df.at[i,'win'] = '1'
+                    else:
+                        df.at[i, 'win'] = '0'
+                    buyState = 0
+                    buyPrice = 0
+
+
+            #如果当天K线包含readyPrice，就买入
+            if df.at[i,'high'] > readyPrice and readyPrice > df.at[i,'low'] and buyState == 0:
+                buyPrice = readyPrice
+                df.at[i,'buy'] = readyPrice
+                buyState = 1
+
+
+        df = df[
+            ['code', 'date', 'high', 'low', 'close', '增幅', 'bar', 'bTrend', 'po', 'barKey',
+             'barKeyCh', 'ema26', 'upCFactor', 'upC', 'downC', 'lossStop', 'lossStop2','穿过止损','readyPrice', 'buy','sell','win']]
+        print(df)
+        outPutXlsx(df)
+        exit()
+
+
+
+#验证周线脉冲系统买入
+def buyPolicyWeekEma12up(dfArray,stockName):
+    x = 0
+    for df in dfArray:
+        if len(stockName) > 1:
+            df['code'] = df['code'] +'.' +stockName[x]
+        df['ema12_WTrend'] = np.where(df['ema12_W'] >df['ema12_W'].shift(1),'up','down' )
+        condition = (df['barKey_W'] == '1') | (df['barKey_W'] == '-1')
+        df['脉冲系统_W'] = np.where((df['ema12_WTrend'] == 'up') & condition,'买入','')
+        df = df[
+            ['code', 'date','high','low', 'close', '增幅', 'bar', 'bTrend', 'po', 'barKey', 'ema12Trend','脉冲系统','barKeyCh','ema26','upCFactor', 'upC','downC','lossStop','lossStop2','bTrend_W', 'po_W','barKey_W']]
+        df = df.drop([len(df) - 1])  # 把以前手工加的最后一行删除
+    return
+
+
+
+def getBarChangeMaxStock(dfArray,stockName):
+    barChangeCountArray = []
+    stockCodeArray = []
+
+    dfAppend: DataFrame = pd.DataFrame() #
+    dfAppend2: DataFrame = pd.DataFrame() #
+
+    #把所有df合并
+    x = 0
+    for df in dfArray:
+        #计算脉冲系统
+        if len(stockName) > 1:
+            df['code'] = df['code'] +'.' +stockName[x]
+            # df['name'] = stockName[x]
+        df = getPulseSystem(df)
+        df = df[
+            ['code', 'date','high','low', 'close', '增幅', 'bar', 'bTrend', 'po', 'barKey', 'ema12Trend','脉冲系统','barKeyCh','ema26','upCFactor', 'upC','downC','lossStop','lossStop2','bTrend_W', 'po_W','barKey_W']]
+        df = df.drop([len(df) - 1])  # 把以前手工加的最后一行删除
+        dfAppend = dfAppend.append(df)
+        x = x + 1
+
+        # print(dfAppend)
+        # outPutXlsx(dfAppend)
+        # exit()
+
+    # 从"平安银行"取交易日期列表
+    dfArray[0] = dfArray[0].drop([len(dfArray[0]) - 1])
+    dateArray = dfArray[0]['date'].values.tolist()
+
+
+    #根据日期，把每日所有股票的数据形成一个df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        #给df排序（barKeyCh高当排在前面）
+        df2['barKeyCh'].fillna(0, inplace=True)
+        df3 = df2.sort_values(by=['barKeyCh'], ascending=False)
+        df3['barKeyChRank'] = range(len(df3))
+        #每个df只取每天20个数据
+        #把df组合为大dfAppend
+        dfAppend2 = dfAppend2.append(df3.head(50))
+
+    #验证是否靠谱
+    print(dfAppend2)
+    outPutXlsx(dfAppend2)
+    exit()
+    return
+
+
+#检查kdj的J值，J值在20一下向上或上穿20，开始监控，日线周线的情况
 def buyPolicyKdjUp20(dfArray,StockName):
     dfAppend: DataFrame = pd.DataFrame() #
     x = -1
     for df in dfArray:
         x = x + 1
         df = df.drop([len(df) - 1])  # 把以前手工加的最后一行删除
-        df['code'] = df['code'] +' ' +StockName[x]
+        df['code'] = df['code'] +'.' +StockName[x]
         dfWeek = df.drop_duplicates(subset=['date_W'], keep='last', ignore_index=True)  # 只保留每周最后一条记录
         #找到J值在20以下或穿过20，并且周线处于高位，标记为"差"位置
         condition = (df['j20'] == 'j向上少于20') | (df['j20'] == 'j穿过20')
@@ -109,7 +402,13 @@ def buyPolicyKdjUp20(dfArray,StockName):
         df['pEma26'] = df['close']/df['ema26'] - 1
         # df['pEma26'] = df['pEma26'].apply(lambda x: format(x, '.2%'))
 
-        df2 = df[['大于ma110','code', 'date','dw','close','pEma26','增幅','bar','bTrend','po','barKey','j','j20','poValue','date_W', '增幅_W','bar_W','bTrend_W','po_W','barKey_W','j_W','j20_W']]
+        df2 = df[['大于ma110','code', 'date','dw','close','pEma26','增幅','bar','bTrend','po','barKey','barKeyCh','j','j20','poValue','date_W', '增幅_W','bar_W','bTrend_W','po_W','barKey_W','j_W','j20_W']]
+
+        if x == 0:
+            print(list(df))
+            print(df2)
+            outPutXlsx(df2)
+            exit()
 
 
         #找到最近一个星期10个交易日J值在20以下或穿过20

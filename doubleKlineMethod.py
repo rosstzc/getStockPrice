@@ -72,27 +72,13 @@ def getWeeklyData(kLineWeekArray):
         df[4] = pd.to_numeric(df[4])  # 最低价，把字符转化为数字
         df[5] = pd.to_numeric(df[5])  # 收盘价，把字符转化为数字
         df["增幅"] = df[5]/df[5].shift() - 1
+
         df["增幅"] = df["增幅"].apply(lambda x: format(x, '.2%'))
         df['po'] = ''
 
         df = getDfMacd(df) #获取macd
         df = getDfKdj(df)  #获取kdj
 
-        #计算dea的向上、向下趋势
-        index = len(df) #得到索引
-        barHLidList = df.loc[(df.barHL == 'H') | (df.barHL == 'L')].index.tolist() #bar所有HL点的的行的索引
-
-        for i in range(index):  #这个循环效率，日后可以优化
-            df = getDeaDifTrend(i, df, 'deaHL', 'deaTrend')  #计算bar值在本周期的百分比
-
-            # #估计bar值所在波形的位置
-            df = getBarPositionDf(barHLidList,df,i)
-            # print(df)
-            # exit()
-            df = getScore(df,i,'w')
-        #
-        # print(df[[0,'deaHL','deaTrend','barRankP','bar','barHL','bTrend','po','bNo']])
-        # exit()
 
         df.rename(columns={
             0: 'date',
@@ -102,7 +88,49 @@ def getWeeklyData(kLineWeekArray):
             4: 'low',
             5: 'close',
         }, inplace=True)
+
+
+        #计算dea的向上、向下趋势
+        index = len(df) #得到索引
+        barHLidList = df.loc[(df.barHL == 'H') | (df.barHL == 'L')].index.tolist() #bar所有HL点的的行的索引
+
+        barChangeCount = 0
+        ema26DiffArray = np.array([])
+        lowPriceArray = np.array([])
+
+
+        for i in range(index):  #这个循环效率，日后可以优化
+            df = getDeaDifTrend(i, df, 'deaHL', 'deaTrend')  #计算bar值在本周期的百分比
+
+            # #估计bar值所在波形的位置
+            df = getBarPositionDf(barHLidList,df,i)
+            # print(df)
+            # exit()
+            # df = getScore(df,i,'w')
+
+            #当bar为负，计算在一周期内，又'-0'转'-1'的次数，方便后续全网做排序，选次数多的来买
+            temp = getBarChangeCount(df,i,barChangeCount)
+            df = temp[0]
+            barChangeCount = temp[1]
+
+
+            # 计算通道（4个月95%线柱包含在通道内）
+            temp = getEma26Channel(df, i, ema26DiffArray)
+            df = temp[0]
+            ema26DiffArray = temp[1]
+
+            #计算止损价格（上升时，也可以用作止盈）
+            temp = getLossStopPrice(df,i,lowPriceArray)
+            df = temp[0]
+            lowPriceArray = temp[1]
+
+        # print(df[[0,'deaHL','deaTrend','barRankP','bar','barHL','bTrend','po','bNo']])
+        # exit()
+        df['c/ema26'] = df['close']/df['ema26'] - 1
+        df['c/Channel'] = df['c/ema26']/df['upCFactor']
+        df = getPulseSystem(df)
         dfAppend = dfAppend.append(df)
+
     return dfAppend
 
 
@@ -146,7 +174,7 @@ def processKline(stockCodeArray, toFile = 1):
     dfWeekAppend= getWeeklyData(kLineWeekArray)
 
     #计算小时线的数据
-    kLineHourArray = Kline[2] #周k线
+    kLineHourArray = Kline[2] #小时k线
     dfHourAppend= getHourData(kLineHourArray)
 
 
@@ -444,6 +472,7 @@ def getWeeklyKline(stockCodeArray, start_date, end_date):
         # df: DataFrame = pd.DataFrame(data_list)
         # print(df)
         # exit()
+
         klineWeekArray.append(data_list)
     return klineWeekArray
 
@@ -493,9 +522,42 @@ def getOnlyKline(stockCodeArray,toFile=1,start_date='2018-01-06',end_date='2023-
     result.columns =  ["date","code","open","high","low","close"]
 
     # 获取周K线数据
-    KlineWeekArray = []
     KlineWeekArray = getWeeklyKline(stockCodeArray, start_date, end_date)
     KlineHourArray = getHourKline(stockCodeArray, start_date, end_date)
+
+    # 用日线数据给周线数据补充最后一周数据
+    for x in range(len(KlineWeekArray)):
+        week = KlineWeekArray[x]  #一个股票的周k线
+        week.reverse()
+        day = klineArray[x]  #一个股票的日k线
+        day.reverse() #倒序，最后一天在前面
+        dateDayLast = day[0][0]
+        dateWeekLast = week[0][0]
+        temp = []
+        #通过日数据计算最后一周数据
+        weekDate = getYearWeekFromDate(dateDayLast) #计算是本年的第几个周
+        closeLastWeek = day[0][5] #这周最后一天收盘价就是周收盘价
+        openLastWeek = day[0][2]
+        highLastWeek = day[0][3]
+        lowLastWeek = day[0][4]
+        for d in day:
+            if getYearWeekFromDate(d[0]) == weekDate:# 从后向前查询这周每天数据
+                openLastWeek = d[2] #这个周的第一天开盘价就是周开盘价
+                if d[3] > highLastWeek: #取最大值
+                    highLastWeek = d[3]
+                if d[4] < lowLastWeek:
+                    lowLastWeek = d[4]
+            else:
+                break
+        weekLast = [day[0][0], day[0][1], openLastWeek, highLastWeek, lowLastWeek, closeLastWeek ]
+        if dateDayLast == dateWeekLast:  #若果最后一日和最后一周是在相同周，就覆盖，否则就新建
+            week[0] = weekLast
+        else:
+            week.insert(0,weekLast)
+        week.reverse()
+        day.reverse()
+
+
 
     if toFile == 1:
         result.to_excel('/Users/miketam/Downloads/getOnlyKline.xlsx', float_format='%.5f', index=False)

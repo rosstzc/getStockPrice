@@ -8,10 +8,147 @@ from pandas import DataFrame
 # from checkPolicy import *
 from multiprocessing import Process
 
+#计算止损价（每天计算），下降取30天回溯期，差值系数为2；上升取40天回溯期，差值系数为3
+def getLossStopPrice(df,i,lowPriceArray):
+    #以当天ema12为基准确定是上升还是下降，然后执行不同逻辑。
+
+    #先把最低价放入数组，方便后面使用
+    if len(lowPriceArray) == 0:
+        df['lowDiff'] = df['low'] - df['low'].shift(1) #计算差值
+        lowPriceArray = df['lowDiff'].values
+        del df['lowDiff']
+
+
+    if i > 0:
+        # 确定一下系数
+        if df.at[i,'ema12'] > df.at[i-1,'ema12']:   #ema12向上
+            days = 40
+            factor = 3 #差值系数
+        else:
+            days = 30
+            factor = 2
+        #计算止损
+        if i > days:
+            lowPriceTemp = lowPriceArray[i-days:i]
+        else:
+            lowPriceTemp = lowPriceArray[0:i]
+        y = 0
+        sum = 0
+        for x in lowPriceTemp:
+            if x < 0:
+               sum = sum +abs(x)
+               y = y + 1
+        if y > 0:
+            avg = sum/y
+            df.at[i+1,'code'] = df.at[i,'code']
+            # df.at[i+1,'date'] = df.at[i,'date']
+            df.at[i+1,'lossStop'] = df.at[i,'low'] - avg*factor
+            df.at[i + 1, 'lossStop2'] = max(df.at[i + 1, 'lossStop'], df.at[i, 'lossStop'],df.at[i - 1, 'lossStop']) #防止止损点下拉，设定取3天内最高止损点
+            # test = df.at[i,'low']
+            # test2 = df.at[i+1,'lossStop']
+        # if i == 100:
+        #     outPutXlsx(df)
+        #     fd = 33
+    return [df, lowPriceArray]
 
 
 
+# 当bar为负，计算在一周期内，由'-0'转'-1'的次数，方便后续全网做排序，选次数多的来买
+def getBarChangeCount(df,i,barChangeCount):
+    if i > 10 and df.at[i-1,'bar'] > 0 and df.at[i,'bar'] < 0 : #选择bar值为负的周期
+        barChangeCount = 0
+    if barChangeCount > 0 and df.at[i,'bar'] < 0 : #补全不是转化当天的日期，方便后面统计
+        df.at[i, 'barKeyCh'] = barChangeCount
+    if i > 10 and df.at[i-1,'barKey'] == '-0' and df.at[i,'barKey'] == '-1':
+        barChangeCount += 1
+        df.at[i,'barKeyCh'] = barChangeCount
+    return [df, barChangeCount]
 
+
+#计算股票偏离ema26的程度
+def getPriceDifEma26(df):
+
+    #以股价-ema26的值跟通道值比较，得到占通道比例，然后做个排序
+
+
+    return
+
+
+#计算脉冲系统
+def getPulseSystem(df):
+    df['ema12Trend'] = np.where(df['ema12'] > df['ema12'].shift(1), 'up', 'down')
+    condition = (df['barKey'] == '1') | (df['barKey'] == '-1')
+    condition2 = (df['barKey'] == '0') | (df['barKey'] == '-0')
+    df['脉冲系统'] = np.where((df['ema12Trend'] == 'up') & condition, '做多', '')
+    df['脉冲系统'] = np.where((df['ema12Trend'] == 'down') & condition2, '做空', df['脉冲系统'])
+    return df
+
+
+ #计算通道（4个月95%线柱包含在通道内）
+def getEma26Channel(df,i,ema26DiffArray):
+
+    #计算通道（4个月95%线柱包含在通道内）
+    #新算法： 1）先把每天相对均线的最大值计算出来，并且放入array. 2)从当前位置取最近100个值，然后排序，取95%位置左右的值. 3)找到该值对应的ema26值，计算因子。 4）然后用这个因子更新当前i行的通道值。
+    # 找到每天的k线相对均线的最大值 （从最高价-均线，最低价-均线，取两者绝对值的最大值
+    if len(ema26DiffArray) == 0:
+        df['high-ema26'] = np.where(
+            abs(df['high'] - df['ema26']) - abs(df['low'] - df['ema26']) > 0,
+            abs(df['high'] - df['ema26']),
+            abs(df['low'] - df['ema26']) )
+        ema26DiffArray = df['high-ema26'].values
+        # printEma26Array = df['ema26'].values #
+
+    number = 100 #取最近100个K线
+    if i > number:
+        priceArrayNew = ema26DiffArray[i-number:i+1]
+        # printEma26Array = printEma26Array[i-100:i+1] #
+    else:
+        priceArrayNew = ema26DiffArray[0:i+1]
+        # priceArrayNew = priceArray[0:i]
+
+    sum = len(priceArrayNew)
+    goal = int(sum * 0.94)
+    # print(i)
+    priceArrayNew2 = np.sort(priceArrayNew) #排序
+    upCValue = priceArrayNew2[goal-1]  #找到临界点的那个值
+    #计算通道因子
+    upCValueId = np.where(priceArrayNew==upCValue)[0][0]
+    upCEma26Id = i - (sum -  upCValueId) + 1  #找到该临界值在df的id
+    upCEma26 = df.at[upCEma26Id,'ema26']
+    upCFactor = upCValue/upCEma26
+
+    df.at[i,'upCFactor'] = upCFactor
+    df.at[i,'upC'] = df.at[i,'ema26'] * (1+upCFactor)
+    df.at[i,'downC'] = df.at[i,'ema26'] * (1-upCFactor)
+
+    # if i == 232:
+    #     df = df[['date', 'open', 'high', 'low', 'ema26','high-ema26','upC','downC']]
+    #     outPutXlsx(df)
+
+        # print('11111')
+        # exit()
+        # print(priceArrayNew)
+        # exit()
+        # df = df[['date', 'open', 'high', 'low', 'ema26','high-ema26']]
+        # print(priceArray)
+        # print(len(priceArray))
+        # print(priceArrayNew)
+        # print(len(priceArrayNew))
+        # print(priceArrayNew2)
+        # print('切片元素个数：' + str(sum))
+        # print('95%对于数量：' + str(goal))
+        # print('这个切片的通道临界值：' + str(upCValue))
+        # # print(printEma26Array[upCema26Id])
+        # print(upCValueId)
+
+
+
+        # print(df.at[i,'date'])
+        # print(df.at[i,'ema26'])
+        # print(upCValue/df.at[i,'ema26']-1)
+        # outPutXlsx(df)
+
+    return [df,ema26DiffArray]
 
 
 #估计bar值所在波形的低、中、高位置, 逐行更新df
@@ -134,8 +271,9 @@ def getDfKdj(kLineDf):
     return kLineDf
 
 
-def outPutXlsx(df):
-    df.to_excel('/Users/miketam/Downloads/temp.xlsx', float_format='%.5f',index=False)
+def outPutXlsx(df,name='temp'):
+    path = '/Users/miketam/Downloads/'+ name + '.xlsx'
+    df.to_excel(path, float_format='%.5f',index=False)
 
 
 #在df计算macd
