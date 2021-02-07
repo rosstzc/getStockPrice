@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from func import *
 from buyAndSellPolicy import *
 from doubleKlineMethod import *
+# from chart import *
 import time
 
 
@@ -29,54 +30,33 @@ def checkPolicy(stockCodeArray,stockName):
     # 'barRankP_W', 'bNo_W', 'barKey_H', '加分', '减分', '加分描述', '减分描述', 'bNo', 'barKeyCh', 'poValue', 'pEma26']
 
 
-##周数据处理#####
-    dfWeekArray = getFileOnLocalWeek(stockCodeArray, stockName)  #把周线数据单独处理和输出
-
-    #策略：单纯根据周股价偏离程度排序（周线比日线偏离更大），捕捉哪些短期反弹行情
-    result = getWeekPriceDifEma26(dfWeekArray,stockName)
 
 
+    ##日数据处理#####
 
-    #策略：根据周bar值， 0线下bar转向上次数和偏离通道程度，捕捉哪些反弹的股票
-
-    #策略： 根据周bar值，0线上bar转向下次数和偏离通道程度，捕捉哪些持续上升的股票
-
-
-
-
-##日数据处理#####
-
-    #判断本地是否有processFor处理后的文件，如果有直接读取； 否则调用processFor来生成文件导出到本地
+    # #判断本地是否有processFor处理后的文件，如果有直接读取； 否则调用processFor来生成文件导出到本地
     dfArray = getFileOnLocal(stockCodeArray, stockName)
 
-    #取股票最近N日k线数据，方便查看
-    # result = getKline(dfArray,stockName)
+    # #取股票最近N日k线数据，方便查看
+    result = getKline(dfArray, stockName)
 
-
-    #通过止损点来设计交易策略
-    #遇到止损点，计算左边最高价，直到右边等于左边最高价时买入。买入后在下一个止损点卖出
+    # 通过止损点来设计交易策略
+    # 遇到止损点，计算左边最高价，直到右边等于左边最高价时买入。买入后在下一个止损点卖出
     # result = buyPolicyLossStop(dfArray,stockName)
 
-    #针对向上行情（周线ema12向上），用通道和止损策略买卖，当买时也要看看macd bar值情况
+    # 针对向上行情（周线ema12向上），用通道和止损策略买卖，当买时也要看看macd bar值情况
     # result = buyPolicyWeekEma12up(dfArray,stockName)
 
-
-    #趋势交易法可能适用这个
-    #当bar为负，找某天哪些假向上最多当股票，给他们排序，看看排前面转真向上的概率是不是大些.. 感觉这个方法可能对于发现新趋势有帮助，一旦趋势形成持有就可以
+    # 趋势交易法可能适用这个
+    # 当bar为负，找某天哪些假向上最多当股票，给他们排序，看看排前面转真向上的概率是不是大些.. 感觉这个方法可能对于发现新趋势有帮助，一旦趋势形成持有就可以
     # result = getBarChangeMaxStock(dfArray,stockName)
-    #补充周线
+    # 补充周线
     # result = getBarChangeMaxStockWeekly(dfArray,stockName)
 
+    # 当bar为正是，同理可以统计假向下
 
-    #当bar为正是，同理可以统计假向下
-
-
-
-
-
-    #检查kdj的J值，J值在20一下向上或上穿20，开始监控，日线周线的情况
+    # 检查kdj的J值，J值在20一下向上或上穿20，开始监控，日线周线的情况
     # result = buyPolicyKdjUp20(dfArray,stockName)
-
 
     ##根据周线bar柱的切换来判断买入
     # result = buyPolicyBarChange(dfArray,stockName)
@@ -88,6 +68,17 @@ def checkPolicy(stockCodeArray,stockName):
     # result = buyPolicyMacdKdj(dfArray,stockName)
 
 
+    ##周数据处理#####
+    dfWeekArray = getFileOnLocalWeek(stockCodeArray, stockName)  # 把周线数据单独处理和输出
+
+    # 策略 ：
+
+    # 策略：单纯根据周股价偏离程度排序（周线比日线偏离更大），捕捉哪些短期反弹行情
+    result = getWeekPriceDifEma26(dfWeekArray, stockName)
+
+    # 策略：根据周bar值， 0线下bar转向上次数和偏离通道程度，捕捉哪些反弹的股票
+
+    # 策略： 根据周bar值，0线上bar转向下次数和偏离通道程度，捕捉哪些持续上升的股票
 
     return
 
@@ -109,6 +100,7 @@ def getFileOnLocalWeek(stockCodeArray, stockName):
     if os.path.exists(filePath+'.csv'):
         #从本地去
         df = pd.read_csv(filePath + '.csv',sep=',',encoding="gb2312", dtype={'barKey': str,'barKey_W':str})
+        # df = pd.read_csv(filePath + '.csv',sep=',',encoding="gb2312", dtype={'barKey': str,'barKey_W':str},converters={'增幅':p2f})
     else:
         # df = processFor(stockCodeArray,1,stockName,filePath)
         df = processKline(stockCodeArray)[1] #只要周线
@@ -117,6 +109,8 @@ def getFileOnLocalWeek(stockCodeArray, stockName):
     dfArray = dfDivide(stockCodeArray,df)
     return dfArray
 
+def p2f(x):
+    return float(x.strip('%'))/100
 
 #为节约调试时所需时间，把数据放在本地
 def getFileOnLocal(stockCodeArray, stockName):
@@ -255,7 +249,9 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
         array4 = []
         barChangeCount = 0
         ema26DiffArray = np.array([])
-        lowPriceArray = np.array([])
+        lowDiffArray = np.array([])
+        lowDifEma26Array = np.array([])
+        highDifEma26Array = np.array([])
 
 
         index = len(df) - 1 #得到索引,减1是因为之前增加一个不规则的行数据
@@ -284,9 +280,20 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
             ema26DiffArray = temp[1]
 
             #计算止损价格（上升时，也可以用作止盈）
-            temp = getLossStopPrice(df,i,lowPriceArray)
+            temp = getLossStopPrice(df,i,lowDiffArray)
             df = temp[0]
-            lowPriceArray = temp[1]
+            lowDiffArray = temp[1]
+
+            ##判断当天是否为最近5天最合适买点（以ema26为基准）
+            temp = getBuyPointBaseEma26(df, i, lowDifEma26Array)
+            df = temp[0]
+            lowDifEma26Array = temp[1]
+
+            ##判断当天是否为最近5天最合适卖点（以ema26为基准）
+            temp = getSellPointBaseEma26(df, i, highDifEma26Array)
+            df = temp[0]
+            highDifEma26Array = temp[1]
+
 
             # #识别当前点的DEA、dif是向上或向下
             # # df = getMacdTrend(i,df,'deaHL','deaTrend')
@@ -395,8 +402,6 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
             # lossReduce = sell[8]
             # winReduce = sell[9]
 
-        df['c/ema26'] = df['close']/df['ema26'] - 1
-        df['c/Channel'] = df['c/ema26']/df['upCFactor']
         df = getPulseSystem(df)
         # print(list(df))
         # print(df.head())

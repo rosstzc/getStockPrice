@@ -71,9 +71,13 @@ def getWeeklyData(kLineWeekArray):
         df[3] = pd.to_numeric(df[3])  # 最高价，把字符转化为数字
         df[4] = pd.to_numeric(df[4])  # 最低价，把字符转化为数字
         df[5] = pd.to_numeric(df[5])  # 收盘价，把字符转化为数字
-        df["增幅"] = df[5]/df[5].shift() - 1
+        df[6] = pd.to_numeric(df[6])  # 收盘价，把字符转化为数字
 
-        df["增幅"] = df["增幅"].apply(lambda x: format(x, '.2%'))
+        df["增幅"] = df[5]/df[5].shift() - 1
+        df['增幅'].fillna(0, inplace=True)
+
+
+        # df["增幅"] = df["增幅"].apply(lambda x: format(x, '.2%'))
         df['po'] = ''
 
         df = getDfMacd(df) #获取macd
@@ -87,6 +91,7 @@ def getWeeklyData(kLineWeekArray):
             3: 'high',
             4: 'low',
             5: 'close',
+            6:'volume'
         }, inplace=True)
 
 
@@ -96,8 +101,9 @@ def getWeeklyData(kLineWeekArray):
 
         barChangeCount = 0
         ema26DiffArray = np.array([])
-        lowPriceArray = np.array([])
-
+        lowDiffArray = np.array([])
+        lowDifEma26Array = np.array([])
+        highDifEma26Array = np.array([])
 
         for i in range(index):  #这个循环效率，日后可以优化
             df = getDeaDifTrend(i, df, 'deaHL', 'deaTrend')  #计算bar值在本周期的百分比
@@ -120,14 +126,24 @@ def getWeeklyData(kLineWeekArray):
             ema26DiffArray = temp[1]
 
             #计算止损价格（上升时，也可以用作止盈）
-            temp = getLossStopPrice(df,i,lowPriceArray)
+            temp = getLossStopPrice(df,i,lowDiffArray)
             df = temp[0]
-            lowPriceArray = temp[1]
+            lowDiffArray = temp[1]
+
+            ##判断当天是否为最近5天最合适买点（以ema26为基准）
+            temp = getBuyPointBaseEma26(df, i, lowDifEma26Array)
+            df = temp[0]
+            lowDifEma26Array = temp[1]
+
+
+            ##判断当天是否为最近5天最合适卖点（以ema26为基准）
+            temp = getSellPointBaseEma26(df, i, highDifEma26Array)
+            df = temp[0]
+            highDifEma26Array = temp[1]
 
         # print(df[[0,'deaHL','deaTrend','barRankP','bar','barHL','bTrend','po','bNo']])
         # exit()
-        df['c/ema26'] = df['close']/df['ema26'] - 1
-        df['c/Channel'] = df['c/ema26']/df['upCFactor']
+
         df = getPulseSystem(df)
         dfAppend = dfAppend.append(df)
 
@@ -187,6 +203,7 @@ def processKline(stockCodeArray, toFile = 1):
         kLineDf[3] = pd.to_numeric(kLineDf[3])  # 最高价，把字符转化为数字
         kLineDf[4] = pd.to_numeric(kLineDf[4])  # 最低价，把字符转化为数字
         kLineDf[5] = pd.to_numeric(kLineDf[5])  # 收盘价，把字符转化为数字
+        kLineDf[6] = pd.to_numeric(kLineDf[6])  # 收盘价，把字符转化为数字
 
         # 把时间列标准化时间格式
         kLineDf['dw'] = pd.to_datetime(kLineDf[0])
@@ -375,6 +392,7 @@ def processKline(stockCodeArray, toFile = 1):
             3: 'high',
             4: 'low',
             5: 'close',
+            6: 'volume',
 
             # 'ma5': 'ma555',
             # 'ma10': 'ma555',
@@ -456,7 +474,7 @@ def getWeeklyKline(stockCodeArray, start_date, end_date):
         rs = bs.query_history_k_data_plus(code,
                                           # 0    1     2    3   4    5      6       7      8        9      10     11          12    13    14    15      16     17
                                           # "date,code,open,high,low,close,preclose,volume,amount,adjustflag,turn,tradestatus,pctChg,peTTM,pbMRQ,psTTM,pcfNcfTTM,isST",
-                                          "date,code,open,high,low,close",
+                                          "date,code,open,high,low,close,volume",
                                           start_date= start_date, end_date= end_date,
                                           frequency="w", adjustflag="2")
         while (rs.error_code == '0') & rs.next():
@@ -502,7 +520,7 @@ def getOnlyKline(stockCodeArray,toFile=1,start_date='2018-01-06',end_date='2023-
         rs = bs.query_history_k_data_plus(code,
                                           # 0    1     2    3   4    5      6       7      8        9      10     11          12    13    14    15      16     17
                                           # "date,code,open,high,low,close,preclose,volume,amount,adjustflag,turn,tradestatus,pctChg,peTTM,pbMRQ,psTTM,pcfNcfTTM,isST",
-                                          "date,code,open,high,low,close",
+                                          "date,code,open,high,low,close,volume",
                                           start_date= start_date, end_date= end_date,
                                           frequency="d", adjustflag="2")
         while (rs.error_code == '0') & rs.next():
@@ -519,7 +537,7 @@ def getOnlyKline(stockCodeArray,toFile=1,start_date='2018-01-06',end_date='2023-
         arrayMerage.extend(data_list)
         klineArray.append(data_list) #用在二次处理
     result: DataFrame = pd.DataFrame(arrayMerage)
-    result.columns =  ["date","code","open","high","low","close"]
+    result.columns =  ["date","code","open","high","low","close","volume"]
 
     # 获取周K线数据
     KlineWeekArray = getWeeklyKline(stockCodeArray, start_date, end_date)

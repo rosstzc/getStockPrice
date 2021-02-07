@@ -5,17 +5,150 @@ import numpy as np
 import time
 import os
 from pandas import DataFrame
+import mplfinance as mpf
 # from checkPolicy import *
 from multiprocessing import Process
 
+
+#周期内背离
+    #算法说明：1）底背离：从最后一个柱子往前找到-0转-1的所有点， 从后向前比较，
+
+
+#周期外背离
+
+
+#画图
+def getChart(df, filePath, type=''):
+    # 画图
+    code = df.iat[1,1]#股票代码
+    # df.reset_index(drop=True, inplace=True)
+    df.drop(index=len(df) - 1, inplace=True)
+    # df = df.iloc[::-1]
+    df = df.tail(200)
+    # df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+    df['date'] = pd.to_datetime(df['date'])
+    df.set_index('date', inplace=True)
+
+    low5List = (df['5low'] * 0.98).tolist()
+    high5List = (df['5high'] * 1.02).tolist()
+
+    # dfAppend['lowTo'] = dfAppend['close'].shift(1) - (dfAppend['high'].shift(1) - dfAppend['low'].shift(1))/2*1 #预测明天的最低价,
+    # dfAppend['highEma12'] = pd.DataFrame.ewm(dfAppend['high'], span=12).mean()     #最高价的均线highEma12
+    # dfAppend['lowEma12'] = pd.DataFrame.ewm(dfAppend['low'], span=5).mean()      #最低价的均线lowEma12
+
+    # outPutXlsx(df, 'test')
+
+    #macdbar的正负值
+    df['barP'] = np.where(df['bar'] > 0, df['bar'] ,0) # 取正数bar值
+    df['barN'] = np.where(df['bar'] < 0, df['bar'] ,0) #取负数bar值
+    #脉冲系统
+    df['buyLabel'] = np.where(df['脉冲系统'] == '做多', df['high']*1.06, np.nan) #做多
+    df['sellLabel'] = np.where(df['脉冲系统'] == '做空', df['low']*0.94, np.nan) #做空
+
+    df['bar021'] = df['bar021'] * 1.20
+
+    # df['ema26+2'] = df['ema26'] * 1.02
+
+    add_Plot = [
+        mpf.make_addplot(df[['ema12', 'ema26', 'upC', 'downC']]),
+        mpf.make_addplot(low5List, scatter=True, markersize=40, marker='^', color='g'),
+        mpf.make_addplot(high5List, scatter=True, markersize=40, marker='v', color='r'),
+
+        #脉冲系统，做多，做空
+        mpf.make_addplot(df['sellLabel'].tolist(), scatter=True, markersize=40, marker='.', color='black'),
+        mpf.make_addplot(df['buyLabel'].tolist(), scatter=True, markersize=40, marker='.', color='blue'),
+
+        #止损点
+        mpf.make_addplot(df['lossStop2'].tolist(), scatter=True, markersize=40, marker='_', color='blue'),
+
+        #macd
+        mpf.make_addplot(df['barP'], type='bar', width=0.7, panel=1, color='black'), #正数柱子
+        mpf.make_addplot(df['barN'], type='bar', width=0.7, panel=1, color='dimgray'),  #负数柱子
+        mpf.make_addplot(df[['dif']], panel=1, color='fuchsia', secondary_y=True),
+        mpf.make_addplot(df[['dea']], panel=1, color='b', secondary_y=True),
+        mpf.make_addplot(df[['bar021']],  panel=1,scatter=True, markersize=40, marker='^', color='r'),
+
+        # 强力指标
+        mpf.make_addplot(df[['force2']], panel=2),  # panel表示幅图，最多有9个
+        # mpf.make_addplot(df[['force12']], panel=3),  # panel表示幅图，最多有9个
+    ]
+
+    # 设置k线图颜色
+    my_color = mpf.make_marketcolors(
+        up='black',  # 上涨时为红色
+        down='gray',  # 下跌时为绿色
+        edge='i',  # 隐藏k线边缘
+        volume='in',  # 成交量用同样的颜色
+        inherit=True)
+
+    my_style = mpf.make_mpf_style(gridaxis='both',  # 设置网格
+                                  gridstyle='-.',
+                                  y_on_right=True,
+                                  marketcolors=my_color)
+
+    mpf.plot(df,
+             title=code + '_' + type,
+             type='candle',
+             style=my_style,
+             volume=False, #交易量
+             addplot=add_Plot,
+             figratio=(2,1.2), #设置图片大小
+             figscale=3,
+             savefig = filePath + code + '_' + type + '.jpg'
+             # savefig = '/Users/miketam/Downloads/chart/' + code + '.jpg'
+             )
+    # mpf.show()
+    # 下面方法可以访问美股
+    # data = pdr.get_data_yahoo('IBM', '2020/9/1', '2020/10/1')
+    # mpf.plot(data,type='candle')
+    # mpf.plot(data, type='ohlc', mav=4)
+
+
+
+#判断当天是否为最近5天最合适卖（以ema26为基准）
+def getSellPointBaseEma26(df, i, highDifEma26Array, days=4):
+    #先把最低价放入数组，方便后面使用
+    if len(highDifEma26Array) == 0:
+        df['highDifEma26'] = df['high'] - df['ema26']
+        highDifEma26Array = df['highDifEma26'].values
+        del df['highDifEma26']
+    if i > days:
+        a = df.at[i,'date']
+        ema26 = df.at[i,'ema26']
+        today = highDifEma26Array[i]
+        temp = highDifEma26Array[i-days:i+1]
+        max  = highDifEma26Array[i-days:i+1].max()
+        if today == max:
+            df.at[i, '5high'] = df.at[i,'high']
+    return [df, highDifEma26Array]
+
+
+#判断当天是否为最近5天最合适买点（以ema26为基准）
+def getBuyPointBaseEma26(df, i, lowDifEma26Array, days=4):
+    #先把最低价放入数组，方便后面使用
+    if len(lowDifEma26Array) == 0:
+        df['lowDifEma26'] = df['low'] - df['ema26']
+        lowDifEma26Array = df['lowDifEma26'].values
+        del df['lowDifEma26']
+    if i > days:
+        a = df.at[i,'date']
+        ema26 = df.at[i,'ema26']
+        today = lowDifEma26Array[i]
+        temp = lowDifEma26Array[i-days:i+1]
+        min  = lowDifEma26Array[i-days:i+1].min()
+        if today == min:
+            df.at[i, '5low'] = df.at[i,'low']
+    return [df, lowDifEma26Array]
+
+
 #计算止损价（每天计算），下降取30天回溯期，差值系数为2；上升取40天回溯期，差值系数为3
-def getLossStopPrice(df,i,lowPriceArray):
+def getLossStopPrice(df,i,lowDiffArray):
     #以当天ema12为基准确定是上升还是下降，然后执行不同逻辑。
 
     #先把最低价放入数组，方便后面使用
-    if len(lowPriceArray) == 0:
+    if len(lowDiffArray) == 0:
         df['lowDiff'] = df['low'] - df['low'].shift(1) #计算差值
-        lowPriceArray = df['lowDiff'].values
+        lowDiffArray = df['lowDiff'].values
         del df['lowDiff']
 
 
@@ -29,9 +162,9 @@ def getLossStopPrice(df,i,lowPriceArray):
             factor = 2
         #计算止损
         if i > days:
-            lowPriceTemp = lowPriceArray[i-days:i]
+            lowPriceTemp = lowDiffArray[i-days:i]
         else:
-            lowPriceTemp = lowPriceArray[0:i]
+            lowPriceTemp = lowDiffArray[0:i]
         y = 0
         sum = 0
         for x in lowPriceTemp:
@@ -49,7 +182,7 @@ def getLossStopPrice(df,i,lowPriceArray):
         # if i == 100:
         #     outPutXlsx(df)
         #     fd = 33
-    return [df, lowPriceArray]
+    return [df, lowDiffArray]
 
 
 
@@ -76,13 +209,55 @@ def getPriceDifEma26(df):
 
 #计算脉冲系统
 def getPulseSystem(df):
+
+    # df['c/ema12'] = df['close'] / df['ema12'] - 1
+    df['c/ema26'] = df['close'] / df['ema26'] - 1
+
+    df['h/ema26%'] = (df['high'] / df['ema26'] - 1) * 100
+    df['h/ema26%'] = df['h/ema26%'].round(0)
+
+    df['c/ema26%'] = (df['close'] / df['ema26'] - 1) * 100
+    df['c/ema26%'] = df['c/ema26%'].round(0)
+
+    df['l/ema26%'] = (df['low'] / df['ema26'] - 1) * 100
+    df['l/ema26%'] = df['l/ema26%'].round(0)
+
+
+
+    df['c/Channel'] = df['c/ema26'] / df['upCFactor'] * 10  #收盘价在通道的比例
+    df['c/Channel'] = df['c/Channel'].round(1)
+
+    df['h/Channel'] = (df['high'] / df['ema26'] - 1) / df['upCFactor'] * 10 #最高价在通道的比例
+    df['h/Channel'] = df['h/Channel'].round(1)
+
+    df['l/Channel'] =(df['low'] / df['ema26'] - 1) / df['upCFactor']  * 10 #最低价在通道的比例
+    df['l/Channel'] = df['l/Channel'].round(1)
+
+    df['force'] = (df['close'] - df['close'].shift(1)) * df['volume']  #强力指数
+    df['force2'] = pd.DataFrame.ewm(df['force'], span=2).mean()  #用ema2平滑，短期交易识别
+    df['force12'] = pd.DataFrame.ewm(df['force'], span=12).mean() #用ema12平滑，长期趋势
+    maxValue = df['force2'].max()
+    df['force2'] = df['force2']/maxValue * 100
+    maxValue2 = df['force12'].max()
+    df['force12'] = df['force12']/maxValue2 * 100
+
+
     df['ema12Trend'] = np.where(df['ema12'] > df['ema12'].shift(1), 'up', 'down')
+    df['ema26Trend'] = np.where(df['ema26'] > df['ema26'].shift(1), 'up', 'down')
     condition = (df['barKey'] == '1') | (df['barKey'] == '-1')
     condition2 = (df['barKey'] == '0') | (df['barKey'] == '-0')
     df['脉冲系统'] = np.where((df['ema12Trend'] == 'up') & condition, '做多', '')
     df['脉冲系统'] = np.where((df['ema12Trend'] == 'down') & condition2, '做空', df['脉冲系统'])
     return df
 
+
+def formatPrecentStr2Float(df):
+    df = df.str.strip("%").astype(float) / 100       # df['增幅'] = df['增幅'].str.strip("%").astype(float) / 100
+    return df
+
+def formatFloat2PrecentStr(df):
+    df = df.apply(lambda x: format(x, '.2%'))   #df["增幅"] = df["增幅"].apply(lambda x: format(x, '.2%'))
+    return df
 
  #计算通道（4个月95%线柱包含在通道内）
 def getEma26Channel(df,i,ema26DiffArray):
@@ -98,7 +273,7 @@ def getEma26Channel(df,i,ema26DiffArray):
         ema26DiffArray = df['high-ema26'].values
         # printEma26Array = df['ema26'].values #
 
-    number = 100 #取最近100个K线
+    number = 60 #取最近100个K线
     if i > number:
         priceArrayNew = ema26DiffArray[i-number:i+1]
         # printEma26Array = printEma26Array[i-100:i+1] #
@@ -318,7 +493,11 @@ def getDfMacd(df2):
     df['barKey'] = np.where((df['bar'].shift(1) < 0) & (df['bar'] < 0) & (df['bar'] < df['bar'].shift(1)), '-0',df['barKey'])
     df['barKey'] = np.where((df['bar'].shift(1) > 0) & (df['bar'] < 0), '0', df['barKey'])
 
+    #标记bar柱零线下从向下转向上，主要用于手工识别背离
+    df['bar021'] =  np.where((df['bar'].shift(-1) > df['bar']) & (df['bar'].shift(1) > df['bar']) & (df['bar'] < 0) , df['bar'], np.nan)
+        #注意只要1条，2条，
     return df2
+
 
 #把日期字符串转化为年份周，如2018-2， 表示2018年第二周
 def getYearWeekFromDate(dateStr):

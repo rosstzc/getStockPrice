@@ -94,8 +94,11 @@ stockName  = ["平安银行",	"万科A",	  "中兴通讯",	"中国长城",	"华�
 # stockCode = ["002001"] #x新和成
 # stockCode = ["000001"] #平安银行
 # stockCode = ["000651"] #格力电器
+# stockCode = ["002007"] #华兰
+# stockCode = ["002179"] #
+# stockCode = ["601088"] #
 # stockCode = ["002153"] #石基
-# stockCode = ["300015"]
+# stockCode = ["002714"]
 # stockCode = ["300572","300285"]
 # 获取季度数据
 # getSeasonData(stockCode)
