@@ -61,6 +61,94 @@ def getHourData(kLineHourArray):
 
 
 
+#计算月线的各种数据
+def getMonthData(kLineMonthArray):
+    dfAppend: DataFrame = pd.DataFrame() #
+    for x in kLineMonthArray:
+        df: DataFrame = pd.DataFrame(x)
+        df[2] = pd.to_numeric(df[2])  # 开盘价，把字符转化为数字
+        df[3] = pd.to_numeric(df[3])  # 最高价，把字符转化为数字
+        df[4] = pd.to_numeric(df[4])  # 最低价，把字符转化为数字
+        df[5] = pd.to_numeric(df[5])  # 收盘价，把字符转化为数字
+        df[6] = pd.to_numeric(df[6])  # 收盘价，把字符转化为数字
+
+        df["增幅"] = df[5]/df[5].shift() - 1
+        df['增幅'].fillna(0, inplace=True)
+
+
+        # df["增幅"] = df["增幅"].apply(lambda x: format(x, '.2%'))
+        df['po'] = ''
+
+        df = getDfMacd(df) #获取macd
+        df = getDfKdj(df)  #获取kdj
+
+
+        df.rename(columns={
+            0: 'date',
+            1: 'code',
+            2: 'open',
+            3: 'high',
+            4: 'low',
+            5: 'close',
+            6:'volume'
+        }, inplace=True)
+
+
+        #计算dea的向上、向下趋势
+        index = len(df) #得到索引
+        barHLidList = df.loc[(df.barHL == 'H') | (df.barHL == 'L')].index.tolist() #bar所有HL点的的行的索引
+
+        barChangeCount = 0
+        ema26DiffArray = np.array([])
+        lowDiffArray = np.array([])
+        lowDifEma26Array = np.array([])
+        highDifEma26Array = np.array([])
+
+        for i in range(index):  #这个循环效率，日后可以优化
+            df = getDeaDifTrend(i, df, 'deaHL', 'deaTrend')  #计算bar值在本周期的百分比
+
+            # #估计bar值所在波形的位置
+            df = getBarPositionDf(barHLidList,df,i)
+            # print(df)
+            # exit()
+            # df = getScore(df,i,'w')
+
+            #当bar为负，计算在一周期内，又'-0'转'-1'的次数，方便后续全网做排序，选次数多的来买
+            # temp = getBarChangeCount(df,i,barChangeCount)
+            # df = temp[0]
+            # barChangeCount = temp[1]
+
+
+            # 计算通道（4个月95%线柱包含在通道内）
+            temp = getEma26Channel(df, i, ema26DiffArray)
+            df = temp[0]
+            ema26DiffArray = temp[1]
+
+            #计算止损价格（上升时，也可以用作止盈）
+            temp = getLossStopPrice(df,i,lowDiffArray)
+            df = temp[0]
+            lowDiffArray = temp[1]
+
+            ##判断当天是否为最近5天最合适买点（以ema26为基准）
+            temp = getBuyPointBaseEma26(df, i, lowDifEma26Array)
+            df = temp[0]
+            lowDifEma26Array = temp[1]
+
+
+            ##判断当天是否为最近5天最合适卖点（以ema26为基准）
+            temp = getSellPointBaseEma26(df, i, highDifEma26Array)
+            df = temp[0]
+            highDifEma26Array = temp[1]
+
+        # print(df[[0,'deaHL','deaTrend','barRankP','bar','barHL','bTrend','po','bNo']])
+        # exit()
+
+        df = getPulseSystem(df)
+        dfAppend = dfAppend.append(df)
+
+    return dfAppend
+
+
 
 #计算周线都各种数据，比如macd,kdj
 def getWeeklyData(kLineWeekArray):
@@ -144,7 +232,8 @@ def getWeeklyData(kLineWeekArray):
         # print(df[[0,'deaHL','deaTrend','barRankP','bar','barHL','bTrend','po','bNo']])
         # exit()
 
-        df = getPulseSystem(df)
+        df = getPulseSystem(df) #脉冲系统
+        df = getATRChannel(df)  # 生成ATR通道
         dfAppend = dfAppend.append(df)
 
     return dfAppend
@@ -159,7 +248,7 @@ def getWeeklyData(kLineWeekArray):
 #     df['date'] = pd.to_datetime(df['date'])
 #     df.set_index('date', inplace=True)
 #     # df.index = pd.to_datetime(df.index, unit='s')
-#     weekly_df = df.resample(period)
+#     weekly_df = df.resample(p
 #     weekly_df['open'] = df['open'].resample(period)
 #     weekly_df['high'] = df['high'].resample(period, how='max')
 #     weekly_df['low'] = df['low'].resample(period, how='min')
@@ -173,7 +262,7 @@ def getWeeklyData(kLineWeekArray):
 
 
 #K线数据二次加工
-def processKline(stockCodeArray, toFile = 1):
+def processKline(stockCodeArray, type, toFile = 1):
     Kline = getOnlyKline(stockCodeArray,toFile)
     kLineArray = Kline[0] #日k线
     dfAppend: DataFrame = pd.DataFrame()
@@ -188,10 +277,17 @@ def processKline(stockCodeArray, toFile = 1):
     dfWeekAppend:DataFrame = pd.DataFrame()
     kLineWeekArray = Kline[1] #周k线
     dfWeekAppend= getWeeklyData(kLineWeekArray)
+    if type == 'week':
+        return [0,dfWeekAppend]
+
+    # #计算月线各种数据
+    # kLineMonthArray = Kline[2] #月k线
+    # dfMonthAppend= getMonthData(kLineMonthArray)
+
 
     #计算小时线的数据
-    kLineHourArray = Kline[2] #小时k线
-    dfHourAppend= getHourData(kLineHourArray)
+    # kLineHourArray = Kline[2] #小时k线
+    # dfHourAppend= getHourData(kLineHourArray)
 
 
     #取出每个股票的k线数据，每个i代表1个股票的所有K线
@@ -254,12 +350,12 @@ def processKline(stockCodeArray, toFile = 1):
         kLineDf["ma5ma10Trend"] = np.where((kLineDf["ma5ma10Trend"] == '是')&(kLineDf[4] < kLineDf["priceForMa5Ma10Up"]),'是，有向下', kLineDf["ma5ma10Trend"])
         kLineDf["ma5ma10Trend"] = np.where((kLineDf["ma5ma10Trend"] == '')&(kLineDf[3] > kLineDf["priceForMa5Ma10Up"]),'有双向上', kLineDf["ma5ma10Trend"])
 
-        #双向上价是否在K线内
-        kLineDf["priceForMa5Ma10UpInKLine"] = np.where((kLineDf[4] < kLineDf["priceForMa5Ma10Up"])&(kLineDf["priceForMa5Ma10Up"] < kLineDf[3]),'Y','')
+        # #双向上价是否在K线内
+        # kLineDf["priceForMa5Ma10UpInKLine"] = np.where((kLineDf[4] < kLineDf["priceForMa5Ma10Up"])&(kLineDf["priceForMa5Ma10Up"] < kLineDf[3]),'Y','')
 
         #把双向上基线放放到收盘价作为参考，并更新ma5、ma10作为参考
         index = len(kLineDf)-1
-        kLineDf.at[index,5] = kLineDf.at[index, 'priceForMa5Ma10Up']
+        # kLineDf.at[index,5] = kLineDf.at[index, 'priceForMa5Ma10Up']  #屏蔽这个预测收盘价
         kLineDf["ma5"] = kLineDf[5].rolling(window=5).mean() #再次更新一下均线
         kLineDf["ma10"] = kLineDf[5].rolling(window=10).mean()  #再次更新一下均线
         kLineDf.at[index, 1] = x[0][1]
@@ -268,25 +364,25 @@ def processKline(stockCodeArray, toFile = 1):
         kLineDf["priceForMa5Ma10UpVsMa10"] = kLineDf["priceForMa5Ma10Up"] / kLineDf["ma10"] - 1
         kLineDf["priceForMa5Ma10UpVsMa10"] = kLineDf["priceForMa5Ma10UpVsMa10"].apply(lambda x: format(x, '.2%'))
 
-        ##双向上价/收盘价
-        kLineDf["priceForMa5Ma10UpVsClosePrice"] = kLineDf["priceForMa5Ma10Up"] / kLineDf[5] - 1
-        kLineDf["priceForMa5Ma10UpVsClosePrice"] = kLineDf["priceForMa5Ma10UpVsClosePrice"].apply(lambda x: format(x, '.2%'))
-
-        # kLineDf["priceForMa5Ma10UpVsLowPrice"] #最低价/双向上价
-        kLineDf["lowPriceVsPriceForMa5Ma10Up"] = kLineDf[4] / kLineDf["priceForMa5Ma10Up"] - 1
-        kLineDf["lowPriceVsPriceForMa5Ma10Up"] = kLineDf["lowPriceVsPriceForMa5Ma10Up"].apply(lambda x: format(x, '.2%'))
-
-        # kLineDf["priceForMa5Ma10UpVsHighPrice"] #最高价/双向上价
-        kLineDf["highPriceVsPriceForMa5Ma10Up"] = kLineDf[3]/ kLineDf["priceForMa5Ma10Up"] - 1
-        kLineDf["highPriceVsPriceForMa5Ma10Up"] = kLineDf["highPriceVsPriceForMa5Ma10Up"].apply(lambda x: format(x, '.2%'))
+        # ##双向上价/收盘价
+        # kLineDf["priceForMa5Ma10UpVsClosePrice"] = kLineDf["priceForMa5Ma10Up"] / kLineDf[5] - 1
+        # kLineDf["priceForMa5Ma10UpVsClosePrice"] = kLineDf["priceForMa5Ma10UpVsClosePrice"].apply(lambda x: format(x, '.2%'))
+        #
+        # # kLineDf["priceForMa5Ma10UpVsLowPrice"] #最低价/双向上价
+        # kLineDf["lowPriceVsPriceForMa5Ma10Up"] = kLineDf[4] / kLineDf["priceForMa5Ma10Up"] - 1
+        # kLineDf["lowPriceVsPriceForMa5Ma10Up"] = kLineDf["lowPriceVsPriceForMa5Ma10Up"].apply(lambda x: format(x, '.2%'))
+        #
+        # # kLineDf["priceForMa5Ma10UpVsHighPrice"] #最高价/双向上价
+        # kLineDf["highPriceVsPriceForMa5Ma10Up"] = kLineDf[3]/ kLineDf["priceForMa5Ma10Up"] - 1
+        # kLineDf["highPriceVsPriceForMa5Ma10Up"] = kLineDf["highPriceVsPriceForMa5Ma10Up"].apply(lambda x: format(x, '.2%'))
 
         #计算kdj
         kLineDf = getDfKdj(kLineDf)
 
-
         # # #MACD相关
         kLineDf = getDfMacd(kLineDf)
-
+        # 去掉倒数第二行的bar021数据，因为这行是由于之前新增行数据造成
+        kLineDf.at[len(kLineDf) - 2, 'bar021'] = np.nan
 
         #判断dif、dea波浪线高低点
         # kLineDf['difHL'] =  np.where((kLineDf['dif'] - kLineDf['dif'].shift(1) >= 0 )&(kLineDf['dif'] - kLineDf['dif'].shift(-1) >= 0 ),'H',kLineDf['dif'])
@@ -430,13 +526,14 @@ def processKline(stockCodeArray, toFile = 1):
         # dfAppend = dfAppend.append(kLineDf,ignore_index=True)
 
         ### 结果集输出到csv文件 ####
-    if toFile == 1:
+    # if toFile == 1:
         # dfAppend.to_csv("/Users/miketam/Downloads/processKline.csv", encoding="gbk")
-        dfAppend.to_csv("/Users/miketam/Downloads/processKline.csv", encoding="gbk", index=False)
+        # dfAppend.to_csv("/Users/miketam/Downloads/processKline.csv", encoding="gbk", index=False)
         # macd.to_csv("/Users/miketam/Downloads/processKline_macd.csv", encoding="gbk", index=False)
         # print(dfAppend)
         # dfAppend.to_excel('/Users/miketam/Downloads/processKline.xlsx', float_format='%.5f',index=False)
-    return [dfAppend,dfWeekAppend,dfHourAppend]
+    # return [dfAppend,dfWeekAppend,dfHourAppend]
+    return [dfAppend,dfWeekAppend]
 
 def getHourKline(stockCodeArray, start_date, end_date):
     klineHourArray = []
@@ -465,7 +562,37 @@ def getHourKline(stockCodeArray, start_date, end_date):
     return klineHourArray
 
 
-#获取周K线，然后再计算周macd
+#获取月K线
+def getMonthKline(stockCodeArray, start_date, end_date):
+    klineMonthArray = []
+    for i in stockCodeArray:
+        data_list = []
+        code = codeFormat(i)
+        rs = bs.query_history_k_data_plus(code,
+                                          # 0    1     2    3   4    5      6       7      8        9      10     11          12    13    14    15      16     17
+                                          # "date,code,open,high,low,close,preclose,volume,amount,adjustflag,turn,tradestatus,pctChg,peTTM,pbMRQ,psTTM,pcfNcfTTM,isST",
+                                          "date,code,open,high,low,close,volume",
+                                          start_date= start_date, end_date= end_date,
+                                          frequency="m", adjustflag="2")
+        while (rs.error_code == '0') & rs.next():
+            # 获取一条记录，将记录合并在一起
+            data_list.append(rs.get_row_data())
+
+        #去掉停牌的日期的数据
+        temp_list = []
+        for i in range(len(data_list)):
+            if data_list[i][5] != data_list[i-1][5] or data_list[i][3] != data_list[i-1][3] and i > 0:
+                temp_list.append(data_list[i])
+        data_list = temp_list
+        # df: DataFrame = pd.DataFrame(data_list)
+        # print(df)
+        # exit()
+        klineMonthArray.append(data_list)
+    return klineMonthArray
+
+
+
+#获取周K线
 def getWeeklyKline(stockCodeArray, start_date, end_date):
     klineWeekArray = []
     for i in stockCodeArray:
@@ -540,12 +667,13 @@ def getOnlyKline(stockCodeArray,toFile=1,start_date='2018-01-06',end_date='2023-
     result.columns =  ["date","code","open","high","low","close","volume"]
 
     # 获取周K线数据
-    KlineWeekArray = getWeeklyKline(stockCodeArray, start_date, end_date)
-    KlineHourArray = getHourKline(stockCodeArray, start_date, end_date)
+    # klineMonthArray = getMonthKline(stockCodeArray, start_date, end_date)
+    klineWeekArray = getWeeklyKline(stockCodeArray, start_date, end_date)
+    # KlineHourArray = getHourKline(stockCodeArray, start_date, end_date)
 
     # 用日线数据给周线数据补充最后一周数据
-    for x in range(len(KlineWeekArray)):
-        week = KlineWeekArray[x]  #一个股票的周k线
+    for x in range(len(klineWeekArray)):
+        week = klineWeekArray[x]  #一个股票的周k线
         week.reverse()
         day = klineArray[x]  #一个股票的日k线
         day.reverse() #倒序，最后一天在前面
@@ -581,7 +709,8 @@ def getOnlyKline(stockCodeArray,toFile=1,start_date='2018-01-06',end_date='2023-
         result.to_excel('/Users/miketam/Downloads/getOnlyKline.xlsx', float_format='%.5f', index=False)
         result.to_csv("/Users/miketam/Downloads/getOnlyKline.csv", encoding="gbk", index=False)
         # print(result)
-    return [klineArray, KlineWeekArray, KlineHourArray]
+    return [klineArray, klineWeekArray]
+    # return [klineArray, KlineWeekArray, KlineHourArray]
 
 
 

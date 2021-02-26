@@ -107,18 +107,26 @@ def getKline(dfArray,stockName):
     x = 0
     for df in dfArray:
         if len(stockName) > 1:
+            # df['codeOnly'] = df['code']
             df['code'] = df['code'] +'.' +stockName[x]
+        x = x + 1
+        #画图test
+        # path =  '/Users/miketam/Downloads/chartTest/day/'
+        # getChartTest(df.copy(),path,'day')
 
-        # 画图
-        # path =  '/Users/miketam/Downloads/chart/day/'
-        # getChart(df.copy(),path,'day')
 
-        df = df[[ 'date','code','open','high','low','5low','5high','close', '增幅','volume', 'bar','bar021', 'bTrend', 'po', 'barKey', 'ema12Trend','ema26Trend','脉冲系统','force2','force12','barKeyCh','ema12','ema26','h/ema26%','c/ema26%','l/ema26%','upCFactor', 'upC','downC','h/Channel','c/Channel','l/Channel','lossStop','lossStop2']]
+
+        #画图
+        path =  '/Users/miketam/Downloads/chart/day/'
+        getChart(df.copy(),path,'day')
+
+        # df = df[[ 'date','code','open','high','low','5low','5high','close', '增幅','volume', 'bar','bar021', 'bTrend', 'po', 'barKey', 'ema12Trend','ema26Trend','脉冲系统','force2','force12','barKeyCh','ema12','ema26','h/ema26%','c/ema26%','l/ema26%','upCFactor', 'upC','downC','h/Channel','c/Channel','l/Channel','lossStop','lossStop2', 'ema12Trend_W','ema26Trend_W']]
+        df = df[[ 'date','date_W','code','open','high','low','5low','5high','close', '增幅','volume', 'bar','bar021','bar021_W2', 'bTrend', 'po', 'barKey', 'ema12Trend','ema26Trend','脉冲系统','force2','force2Max','barKeyCh','ema12','ema26','upCFactor', 'upC','downC','lossStop','lossStop2', 'ema12Trend_W','ema26Trend_W','ema21', 'ema21_W', 'ATR1','ATR2','ATR3','ATR-1','ATR-2','ATR-3']]
         df = df.iloc[::-1] #倒序，让最近排在前面
 
         dfAppend = dfAppend.append(df.head(200))
         # dfAppend = dfAppend.append(df)
-        x = x + 1
+
 
     name = '日数据：股票最近K线数据'
     today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
@@ -134,15 +142,82 @@ def getKline(dfArray,stockName):
     dfAppend2: DataFrame = pd.DataFrame() #重置df
     for i in dateArray:
         df2 = dfAppend[(dfAppend['date'] == i)].copy()
-        df3 = df2[(df2['bar021'] < 0)]
+        condition = (df2['ema26Trend_W'] == 'up') | (df2['ema12Trend_W'] == 'up' )
+        df3 = df2[(df2['bar021'] < 0) & condition ]
         dfAppend2 = dfAppend2.append(df3)
-    name = '日数据：计算日线0线下转向上的点，然后再人工找背离'
+    name = '日数据：周趋势向上时，日bar值线0线下转向上的点，然后再人工找背离'
     today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
     name = name+ '-' +str(len(dfArray)) + '-' + today
     outPutXlsx(dfAppend2,name)
-    exit()
+
+    dfAppend2: DataFrame = pd.DataFrame() #重置df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        condition = (df2['ema26Trend_W'] == 'down') & (df2['ema12Trend_W'] == 'down' )
+        df3 = df2[(df2['bar021'] < 0) & condition]
+        dfAppend2 = dfAppend2.append(df3)
+    name = '日数据：周趋势向下时，日bar值0线下转向上的点，然后再人工找背离'
+    today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
+    name = name+ '-' +str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2,name)
+
 
     #策略：在ema26向上趋势，找每天有比较合适买点的股票（是最近5天偏离最大）,再人工判断买点
+    dfAppend2: DataFrame = pd.DataFrame() #重置df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        condition = (df2['ema26Trend_W'] == 'up') | (df2['ema12Trend_W'] == 'up' )
+        df3 = df2[(df2['5low'] > 0) & condition ]
+        dfAppend2 = dfAppend2.append(df3)
+    name = '日数据：周趋势向上时，日最低价偏离ema较大的点（最低价5天内偏离最大），然后人工找买点'
+    today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
+    name = name+ '-' +str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2,name)
+    # exit()
+    dfAppend2: DataFrame = pd.DataFrame() #重置df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        condition = (df2['ema26Trend_W'] == 'down') & (df2['ema12Trend_W'] == 'down' )
+        df3 = df2[(df2['5low'] > 0) & condition ]
+        dfAppend2 = dfAppend2.append(df3)
+    name = '日数据：周趋势向下时，日最低价偏离ema较大的点（最低价5天内偏离最大），然后人工找买点'
+    today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
+    name = name+ '-' +str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2,name)
+
+
+    #突破ATR2
+    dfAppend2: DataFrame = pd.DataFrame() #重置df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        df3 = df2[df2['high'] >  df2['ATR2'] ]
+        dfAppend2 = dfAppend2.append(df3)
+    name = '日数据：今天最高价突破ATR2通道'
+    today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
+    name = name+ '-' +str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2,name)
+
+    #突破ATR-2
+    dfAppend2: DataFrame = pd.DataFrame() #重置df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        df3 = df2[df2['low'] <  df2['ATR-2'] ]
+        dfAppend2 = dfAppend2.append(df3)
+    name = '日数据：今天最低价突破ATR-2通道'
+    today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
+    name = name+ '-' +str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2,name)
+
+    #按日取周bar值从向下转向上
+    dfAppend2: DataFrame = pd.DataFrame() #重置df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        df3 = df2[df2['bar021_W2'] == 1]
+        dfAppend2 = dfAppend2.append(df3)
+    name = '日数据：按日取周bar值从向下转向上'
+    today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
+    name = name+ '-' +str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2,name)
 
 
     return dfAppend
@@ -172,10 +247,11 @@ def getWeekPriceDifEma26(dfArray, stockName):
         condition2 = (df['增幅'] < 0) & (df['增幅'].shift(1) > 0)
 
         #画图
-        # path =  '/Users/miketam/Downloads/chart/week/'
-        # getChart(df.copy(), path,'week')
+        path =  '/Users/miketam/Downloads/chart/week/'
+        getChart(df.copy(), path,'week')
 
-        df = df[['code', 'date','open','high','low', 'close', '5low','增幅', 'bar', 'bTrend', 'barKey','bar021','bNo', 'ema12Trend','ema26Trend','ema100Trend','脉冲系统','force2','force12','barKeyCh','ema12','ema26','ema100','upCFactor', 'upC','downC','c/ema26','h/Channel','c/Channel','l/Channel','lossStop','lossStop2']]
+        # df = df[['code', 'date','open','high','low', 'close', '5low','增幅', 'bar', 'bTrend', 'barKey','bar021','bNo', 'ema12Trend','ema26Trend','ema100Trend','脉冲系统','force2','force12','barKeyCh','ema12','ema26','ema100','upCFactor', 'upC','downC','c/ema26','h/Channel','c/Channel','l/Channel','lossStop','lossStop2']]
+        df = df[['code', 'date','open','high','low', 'close', '5low','增幅', 'bar', 'bTrend', 'barKey','bar021','bNo', 'ema12Trend','ema26Trend','ema100Trend','脉冲系统','force2','barKeyCh','ema12','ema26','ema100','upCFactor', 'upC','downC','lossStop','lossStop2','ATR1','ATR2','ATR3','ATR-1','ATR-2','ATR-3']]
         df['key'] = np.where(condition1 & condition2, '0', '')
         dfAppend = dfAppend.append(df)
 
@@ -207,12 +283,34 @@ def getWeekPriceDifEma26(dfArray, stockName):
         df2 = dfAppend[(dfAppend['date'] == i)].copy()
         df3 = df2[(df2['5low'] > 0) & (df2['ema26Trend'] == 'up')]
         dfAppend2 = dfAppend2.append(df3)
-    name = '周数据：周线趋势向上时，股价偏离ema较大的点（最低价5天内偏离最大），然后人工找买点'
+    name = '周数据：周线趋势向上时，股价偏离ema较大的点（最低价5周内偏离最大），然后人工找买点'
     today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
     name = name+ '-' +str(len(dfArray)) + '-' + today
     outPutXlsx(dfAppend2,name)
-    exit()
 
+    # 突破ATR2
+    dfAppend2: DataFrame = pd.DataFrame()  # 重置df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        df3 = df2[df2['high'] > df2['ATR2']]
+        dfAppend2 = dfAppend2.append(df3)
+    name = '周数据：这周最高价突破ATR2通道'
+    today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
+    name = name + '-' + str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2, name)
+
+    # 突破ATR-2
+    dfAppend2: DataFrame = pd.DataFrame()  # 重置df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        df3 = df2[df2['low'] < df2['ATR-2']]
+        dfAppend2 = dfAppend2.append(df3)
+    name = '周数据：这周最低价突破ATR-2通道'
+    today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
+    name = name + '-' + str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2, name)
+
+    return
 
 
     #根据日期，把每周向上趋势（ema12向上），但出现下跌股票罗列出来
@@ -273,7 +371,7 @@ def getWeekPriceDifEma26(dfArray, stockName):
     today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
     name = name+ '-' +str(len(dfArray)) + '-' + today
     outPutXlsx(dfAppend2,name)
-    exit()
+
 
 
     #当ema26向上，取价格偏离ema26正负10%, 或者通道值。

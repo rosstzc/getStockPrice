@@ -29,6 +29,17 @@ def checkPolicy(stockCodeArray,stockName):
     # 'barHL_W', 'bTrend_W', 'barKey_W', 'k_W', 'd_W', 'j_W', 'kTrend_W', 'jTrend_W', 'k50_W', 'j20_W', '加分_W', '减分_W', '加分描述_W', '减分描述_W', 'deaTrend_W',
     # 'barRankP_W', 'bNo_W', 'barKey_H', '加分', '减分', '加分描述', '减分描述', 'bNo', 'barKeyCh', 'poValue', 'pEma26']
 
+    ##周数据处理#####
+    dfWeekArray = getFileOnLocalWeek(stockCodeArray, stockName)  # 把周线数据单独处理和输出
+
+    # 策略 ：
+
+    # 策略：单纯根据周股价偏离程度排序（周线比日线偏离更大），捕捉哪些短期反弹行情
+    result = getWeekPriceDifEma26(dfWeekArray, stockName)
+
+    # 策略：根据周bar值， 0线下bar转向上次数和偏离通道程度，捕捉哪些反弹的股票
+
+    # 策略： 根据周bar值，0线上bar转向下次数和偏离通道程度，捕捉哪些持续上升的股票
 
 
 
@@ -39,6 +50,8 @@ def checkPolicy(stockCodeArray,stockName):
 
     # #取股票最近N日k线数据，方便查看
     result = getKline(dfArray, stockName)
+
+
 
     # 通过止损点来设计交易策略
     # 遇到止损点，计算左边最高价，直到右边等于左边最高价时买入。买入后在下一个止损点卖出
@@ -68,25 +81,51 @@ def checkPolicy(stockCodeArray,stockName):
     # result = buyPolicyMacdKdj(dfArray,stockName)
 
 
-    ##周数据处理#####
-    dfWeekArray = getFileOnLocalWeek(stockCodeArray, stockName)  # 把周线数据单独处理和输出
 
-    # 策略 ：
-
-    # 策略：单纯根据周股价偏离程度排序（周线比日线偏离更大），捕捉哪些短期反弹行情
-    result = getWeekPriceDifEma26(dfWeekArray, stockName)
-
-    # 策略：根据周bar值， 0线下bar转向上次数和偏离通道程度，捕捉哪些反弹的股票
-
-    # 策略： 根据周bar值，0线上bar转向下次数和偏离通道程度，捕捉哪些持续上升的股票
 
     return
 
 
 
 #为节约调试时所需时间，把数据放在本地
+# def getFileOnLocalAll(stockCodeArray, stockName):
+#     #在本地是否存在股票的csv文件，文件名为getOnlyKline_2_2020-12-20,中间数字为该次去股票的个数
+#     today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
+#     fileType = 'processFor'
+#     if len(stockCodeArray) == 1:
+#         fileName = fileType + '_' + stockCodeArray[0] + '_' + today
+#         # fileName = fileType + '_' + stockCodeArray[0] + '_' + today + '.csv'
+#     else:
+#         fileName = fileType + '_' + str(len(stockCodeArray)) + '_' + today
+#         # fileName = fileType + '_' + str(len(stockCodeArray)) + '_' + today + '.csv'
+#     filePath = "/Users/miketam/Downloads/" + fileName
+#
+#     if os.path.exists(filePath+'.csv'):
+#         #从本地去
+#         df = pd.read_csv(filePath + '.csv',sep=',',encoding="gb2312", dtype={'barKey': str,'barKey_W':str})
+#     else:
+#         df = processFor(stockCodeArray,1,stockName,filePath)
+#     dfArray = dfDivide(stockCodeArray,df)
+#     return dfArray
+
+
+# def getFilePath(stockCodeArray,  ft = 'processDay'):
+#     today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
+#     fileType = ft
+#     if len(stockCodeArray) == 1:
+#         fileName = fileType + '_' + stockCodeArray[0] + '_' + today
+#         # fileName = fileType + '_' + stockCodeArray[0] + '_' + today + '.csv'
+#     else:
+#         fileName = fileType + '_' + str(len(stockCodeArray)) + '_' + today
+#         # fileName = fileType + '_' + str(len(stockCodeArray)) + '_' + today + '.csv'
+#     filePath = "/Users/miketam/Downloads/" + fileName
+#     return filePath
+
+
+#为节约调试时所需时间，把数据放在本地
 def getFileOnLocalWeek(stockCodeArray, stockName):
     #在本地是否存在股票的csv文件，文件名为getOnlyKline_2_2020-12-20,中间数字为该次去股票的个数
+
     today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
     # fileType = 'processFor'
     fileType = 'processWeek'
@@ -103,7 +142,7 @@ def getFileOnLocalWeek(stockCodeArray, stockName):
         # df = pd.read_csv(filePath + '.csv',sep=',',encoding="gb2312", dtype={'barKey': str,'barKey_W':str},converters={'增幅':p2f})
     else:
         # df = processFor(stockCodeArray,1,stockName,filePath)
-        df = processKline(stockCodeArray)[1] #只要周线
+        df = processKline(stockCodeArray, type = 'week')[1] #只要周线
         df.to_csv(filePath + ".csv", encoding="gbk", index=False)
         df.to_excel(filePath + '.xlsx', float_format='%.5f', index=False)
     dfArray = dfDivide(stockCodeArray,df)
@@ -170,17 +209,17 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
 
 
     #根据策略处理数据
-
-
-    dfKline = processKline(stockCodeArray, toFile=toFile)
-
+    dfKline = processKline(stockCodeArray, type = 'all', toFile=toFile)
 
     dfday = dfKline[0] #取日线数据
     dfweek = dfKline[1] #取周线数据
-    dfhour = dfKline[2]
+    # dfMonth = dfKline[2] #取周线数据
+    # dfhour = dfKline[2]
+
     dfDayArray = dfDivide(stockCodeArray,dfday) #把df拆分，每个股票一个df
     dfweekArray = dfDivide(stockCodeArray,dfweek) #把df拆分，每个股票一个df
-    dfhourArray = dfDivide(stockCodeArray,dfhour) #把df拆分，每个股票一个df
+    # dfMonthArray = dfDivide(stockCodeArray,dfMonth) #把df拆分，每个股票一个df
+    # dfhourArray = dfDivide(stockCodeArray,dfhour) #把df拆分，每个股票一个df
 
     resultArray = []
     dfAppend: DataFrame = pd.DataFrame()
@@ -189,7 +228,7 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
     for x in range(len(dfDayArray)):
         df = dfDayArray[x]
         dfweek = dfweekArray[x]
-        dfhour = dfhourArray[x]
+        # dfhour = dfhourArray[x]
         df['po'] = ''
 
         #计算周数据在日表到列位置 （方便后续引用）
@@ -359,22 +398,37 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
 
                 #用日数据更新当天的周数据，比如ema，macd等
                 if p > 0:
-                    df.at[i,'ema12_W2'] = getEMA(12, dfweek.at[p-1,'ema12_W'], df.at[i,'close'])  #这个是按日向上，原来ema12_W是按周显示
-                    df.at[i,'ema12Trend_W2'] = np.where(df.at[i,'ema12_W2'] > dfweek.at[p-1,'ema12_W'],'up','down')
+                    # df.at[i,'ema12_W2'] = getEMA(12, dfweek.at[p-1,'ema12_W'], df.at[i,'close'])  #这个是按日向上，原来ema12_W是按周显示
+                    # df.at[i,'ema12Trend_W2'] = np.where(df.at[i,'ema12_W2'] > dfweek.at[p-1,'ema12_W'],'up','down')
                     # df.at[i,'ema26_W2'] = getEMA(26, dfweek.at[p-1,'ema26_W'], df.at[i,'close'])
                     #还可以补充，包括脉冲系统，等需要这些数据回测时再计算
+                    previousEMA12 = dfweek.at[p-1,'ema12_W']
+                    previousEMA26 = dfweek.at[p-1,'ema26_W']
+                    previousDEA = dfweek.at[p-1,'dea_W']
+                    closePrice = df.at[i,'close']
+                    df.at[i,'bar_W2'] = getMacd(previousEMA12,previousEMA26,previousDEA,closePrice)[2] #每天更新周bar值
+                    #每天更新周bar值的转向（若当天的动态周bar值相对上周是向上，就标记为1，还有前一周也符合条件）
+                    if p > 1:
+                        df.at[i,'bar021_W2'] = np.where(
+                            (dfweek.at[p-2,'bar_W'] > dfweek.at[p-1,'bar_W']) & (df.at[i,'bar_W2'] > dfweek.at[p-1,'bar_W']) & (dfweek.at[p-1,'bar_W'] < 0), 1,
+                            np.nan)
+
+                    #
+                    # df['bar021'] = np.where(
+                    #     (df['bar'].shift(-1) > df['bar']) & (df['bar'].shift(1) > df['bar']) & (df['bar'] < 0), df['bar'],
+                    #     np.nan)
+
+            # #把小时线数据写入列表
+            # date = df.at[i,'date']
+            # dfDayHour = dfhour.loc[dfhour['date']==date] #把今天的小时k线取出
+            # barKeyArray = dfDayHour['barKey'].tolist()
+            # # df.at[i, 'barKey_H'] = barKeyArray
+            # temp = ''
+            # for m in barKeyArray:
+            #     temp = temp + m
+            # df.at[i,'barKey_H'] = temp #
 
 
-
-            #把小时线数据写入列表
-            date = df.at[i,'date']
-            dfDayHour = dfhour.loc[dfhour['date']==date] #把今天的小时k线取出
-            barKeyArray = dfDayHour['barKey'].tolist()
-            # df.at[i, 'barKey_H'] = barKeyArray
-            temp = ''
-            for m in barKeyArray:
-                temp = temp + m
-            df.at[i,'barKey_H'] = temp #
             #买策略：利用macd到dea和bar的高点变化来给出买点
             # df = buyPolicyMacdTrend(i, df)
 
@@ -401,10 +455,14 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
             # wincount = sell[7]
             # lossReduce = sell[8]
             # winReduce = sell[9]
+        # print(df)
+        # print('33')
+        # exit()
+        df = getPulseSystem(df) #
+        df = getATRChannel(df) #生成ATR通道
+        #做一下ATR通道预测
+        # df = df[['date','code','ATR1','ATR2','ATR3','ATR-1','ATR-2','ATR-3',]]
 
-        df = getPulseSystem(df)
-        # print(list(df))
-        # print(df.head())
 
 
         resultStr = '股票：' +code + '，购买次数：' + str(buycount)  + "，盈利次数：" + str(wincount) + "，亏损次数：" + str(losscount),'因macd少盈利：' + str(winReduce) +\
@@ -434,6 +492,7 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
     path = filePath
     dfAppend.to_csv(path + ".csv", encoding="gbk", index=False)
     dfAppend.to_excel(path + '.xlsx', float_format='%.5f',index=False)
+
     # dfAppend.to_csv("/Users/miketam/Downloads/checkPolicy.csv", encoding="gbk", index=False)
     # dfAppend.to_excel('/Users/miketam/Downloads/checkPolicy.xlsx', float_format='%.5f',index=False)
     return dfAppend

@@ -13,9 +13,86 @@ from multiprocessing import Process
 #周期内背离
     #算法说明：1）底背离：从最后一个柱子往前找到-0转-1的所有点， 从后向前比较，
 
-
 #周期外背离
 
+def getChartTest(df, filePath, type=''):
+    code = df.iat[1,1]#股票代码
+    df.drop(index=len(df) - 1, inplace=True)
+    df = df.tail(200)
+    df['date'] = pd.to_datetime(df['date']) #
+    df.set_index('date', inplace=True)
+
+    if type == 'day':
+        # ema21_WList = df['ema21_W'].tolist()
+        # ema21_WList2 =  list(set(ema21_WList)) #去重复
+        # ema21_WList2.sort(key=ema21_WList.index)  #按原来排序
+        # temp = []
+        # for i in range(len(ema21_WList2)):
+        #     if ema21_WList2[i] > ema21_WList2[i+1] and  ema21_WList2[i+1] < ema21_WList2[i+2] and i+2 < len(ema21_WList2): #找到向下转向上
+        #         temp.append(ema21_WList2[i+1])
+
+        #找到ema由向下转向上的第二周
+        df2 = df.drop_duplicates(subset=['date_W'], keep='last', ignore_index=True)  # 只保留每周最后一条记录
+        a = df2['ema21_W'].shift(3)
+        b = df2['ema21_W'].shift(2)
+        c = df2['ema21_W'].shift(1) #由向下转向上
+        d = df2['ema21_W'] #之后1周
+        df2['d2uKey'] = np.where((a>b)&(b<c),1,0) #由向下转向上的之后1周
+        df2 = df2.loc[df2['d2uKey'] == 1]
+        keyList = []
+        keyList = df2['date_W'].tolist()
+
+
+        df['d2uLow'] = np.nan #初始化
+        df['d2uHigh'] = np.nan
+        df[1:2]['d2uLow'] = df[1:2]['low'] #避免有空数组，
+        df[1:2]['d2uHigh'] = df[1:2]['high']
+        for i in keyList:
+            df['d2uLow'] = np.where(df['date_W'] == i, df['low'],df['d2uLow'])
+            df['d2uHigh'] = np.where(df['date_W'] == i, df['high'],df['d2uHigh'])
+
+        # atr通道
+        add_Plot2 = [
+            # 第二个蜡烛图
+            mpf.make_addplot(df, type='candle', ylabel='Candle'),
+            mpf.make_addplot(df[['ema21', 'ATR1', 'ATR2', 'ATR3', 'ATR-1', 'ATR-2', 'ATR-3']]),
+
+            # 标记ema由向下转向上的第二周的最低价、最高价
+            mpf.make_addplot(df['d2uLow'].tolist(), scatter=True, markersize=200, marker='_', color='r'),
+            mpf.make_addplot(df['d2uHigh'].tolist(), scatter=True, markersize=200, marker='_', color='b'),  # 周线向上用蓝色
+
+
+
+        ]
+        # 设置k线图颜色
+        my_color = mpf.make_marketcolors(
+            up='black',  # 上涨时为红色
+            down='gray',  # 下跌时为绿色
+            edge='i',  # 隐藏k线边缘
+            volume='in',  # 成交量用同样的颜色
+            inherit=True)
+
+        my_style = mpf.make_mpf_style(gridaxis='both',  # 设置网格
+                                      gridstyle='-.',
+                                      y_on_right=True,
+                                      marketcolors=my_color)
+
+
+        # 画atr多重通道
+        mpf.plot(df,
+                 title=type,
+                 type='candle',
+                 style=my_style,
+                 volume=False,  # 交易量
+                 addplot=add_Plot2,
+                 # panel_ratios=(1,1),
+                 figratio=(2, 1.2),  # 设置图片大小
+                 # figratio=(2,3), #设置图片大小
+                 figscale=3,
+                 savefig=filePath + code + '_' + type + '_ATRChannel_' + '.jpg'
+                 )
+
+    return
 
 #画图
 def getChart(df, filePath, type=''):
@@ -24,7 +101,7 @@ def getChart(df, filePath, type=''):
     # df.reset_index(drop=True, inplace=True)
     df.drop(index=len(df) - 1, inplace=True)
     # df = df.iloc[::-1]
-    df = df.tail(200)
+    df = df.tail(100)
     # df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
     df['date'] = pd.to_datetime(df['date'])
     df.set_index('date', inplace=True)
@@ -32,46 +109,128 @@ def getChart(df, filePath, type=''):
     low5List = (df['5low'] * 0.98).tolist()
     high5List = (df['5high'] * 1.02).tolist()
 
-    # dfAppend['lowTo'] = dfAppend['close'].shift(1) - (dfAppend['high'].shift(1) - dfAppend['low'].shift(1))/2*1 #预测明天的最低价,
-    # dfAppend['highEma12'] = pd.DataFrame.ewm(dfAppend['high'], span=12).mean()     #最高价的均线highEma12
-    # dfAppend['lowEma12'] = pd.DataFrame.ewm(dfAppend['low'], span=5).mean()      #最低价的均线lowEma12
+    #股价偏离ema最大，绿色表示周ema向上
+    low5List2 = (df['5low'] * 0.98).tolist()
+    if type == 'day':
+        condition = (df['ema26Trend_W'] == 'up') | (df['ema12Trend_W'] == 'up')
+        df['5low2'] = np.where((df['5low'] > 0) & condition, df['5low'], np.nan) #趋势向上
+        low5List2 = (df['5low2'] * 0.98).tolist()
+        low5List2[0] = df['low'].tolist()[1] #避免数组空值
 
-    # outPutXlsx(df, 'test')
 
     #macdbar的正负值
     df['barP'] = np.where(df['bar'] > 0, df['bar'] ,0) # 取正数bar值
     df['barN'] = np.where(df['bar'] < 0, df['bar'] ,0) #取负数bar值
-    #脉冲系统
-    df['buyLabel'] = np.where(df['脉冲系统'] == '做多', df['high']*1.06, np.nan) #做多
-    df['sellLabel'] = np.where(df['脉冲系统'] == '做空', df['low']*0.94, np.nan) #做空
 
-    df['bar021'] = df['bar021'] * 1.20
+    #脉冲系统
+    df['buyLabel'] = np.where(df['脉冲系统'] == '做多', df['high']*1.04, np.nan) #做多
+    df['sellLabel'] = np.where(df['脉冲系统'] == '做空', df['low']*0.96, np.nan) #做空
+
+    # df['bar021'] = df['bar021'] * 1.20
+    bar021List = (df['bar021'] * 1.20).tolist()
+    bar021List2 = (df['bar021'] * 1.20).tolist()
+    lossStop2UpList = df['lossStop2'].tolist()
+
+    # ema21向上时，强力指标在0线下，考虑做多 （不区分周线还是日线）
+    df['force2Down'] = np.where((df['ema21'] > df['ema21'].shift(1)) & (df['force2'] < 0), df['force2'], np.nan)
+    force2DownList = df['force2Down'].tolist()
+    force2DownList[1] = df['force2'].tolist()[1] #避免数组空值，随便弄一个值
+
+
+    if type == 'day': #标记周线ema向上时
+        condition = (df['ema26Trend_W'] == 'up') | (df['ema12Trend_W'] == 'up')
+        df['bar0212'] = np.where((df['bar021'] < 0) & condition, df['bar021']*1.20, np.nan)
+        bar021List2 = (df['bar0212']).tolist()
+        bar021List2[0] = df['bar'].tolist()[1]
+
+        #周线向上时，止损线用蓝色，向下时用红色
+        df['lossStop2Up'] = np.where(condition, df['lossStop2'], np.nan)
+        lossStop2UpList = df['lossStop2Up'].tolist()
+        lossStop2UpList[0] = df['low'].tolist()[1] #避免空值
+
+        # 按日来标记周bar转向上日子，0线下在最低级标，0向上在最高价标
+        df.loc[df['bar021_W2'] == 1, 'bar021_W2'] = df['low']*0.99
+        bar021_W2List = df['bar021_W2'].tolist()
+        bar021_W2List[0] = df['low'].tolist()[1]  # 避免空值，导致不能画图
+        #用蓝色标记一下周五
+
+    else:
+        # 按日来标记周bar转向上日子，0线下在最低级标，0向上在最高价标
+        df['bar021_W2'] = np.nan
+        bar021_W2List = df['bar021_W2'].tolist()
+        bar021_W2List[0] = df['low'].tolist()[1]  # 避免空值，导致不能画图
 
     # df['ema26+2'] = df['ema26'] * 1.02
-
+    print(df.iat[1,0])
     add_Plot = [
+        # mpf.make_addplot(df[['ema12', 'ema26', 'upC', 'downC']]),
         mpf.make_addplot(df[['ema12', 'ema26', 'upC', 'downC']]),
-        mpf.make_addplot(low5List, scatter=True, markersize=40, marker='^', color='g'),
-        mpf.make_addplot(high5List, scatter=True, markersize=40, marker='v', color='r'),
+        mpf.make_addplot(low5List, scatter=True, markersize=40, marker='^', color='y'), #负向偏离最大
+        mpf.make_addplot(low5List2, scatter=True, markersize=40, marker='^', color='g'), #仅日线时有效，ema趋势向上，偏离最大
+        mpf.make_addplot(high5List, scatter=True, markersize=40, marker='v', color='r'), #正向偏离最大
 
         #脉冲系统，做多，做空
         mpf.make_addplot(df['sellLabel'].tolist(), scatter=True, markersize=40, marker='.', color='black'),
         mpf.make_addplot(df['buyLabel'].tolist(), scatter=True, markersize=40, marker='.', color='blue'),
 
         #止损点
-        mpf.make_addplot(df['lossStop2'].tolist(), scatter=True, markersize=40, marker='_', color='blue'),
+        mpf.make_addplot(df['lossStop2'].tolist(), scatter=True, markersize=40, marker='_', color='r'),
+        mpf.make_addplot(lossStop2UpList, scatter=True, markersize=40, marker='_', color='b'), #周线向上用蓝色
+
 
         #macd
         mpf.make_addplot(df['barP'], type='bar', width=0.7, panel=1, color='black'), #正数柱子
         mpf.make_addplot(df['barN'], type='bar', width=0.7, panel=1, color='dimgray'),  #负数柱子
         mpf.make_addplot(df[['dif']], panel=1, color='fuchsia', secondary_y=True),
         mpf.make_addplot(df[['dea']], panel=1, color='b', secondary_y=True),
-        mpf.make_addplot(df[['bar021']],  panel=1,scatter=True, markersize=40, marker='^', color='r'),
+        mpf.make_addplot(bar021List,  panel=1,scatter=True, markersize=50, marker='^', color='y'), #barKey值由-0转-1
+        mpf.make_addplot(bar021List2,  panel=1,scatter=True, markersize=50, marker='^', color='g'), #barKey值由-0转-1，周线向上趋势
 
         # 强力指标
-        mpf.make_addplot(df[['force2']], panel=2),  # panel表示幅图，最多有9个
-        # mpf.make_addplot(df[['force12']], panel=3),  # panel表示幅图，最多有9个
+        mpf.make_addplot(df[['force2']],ylabel='force Index', panel=2),  # panel表示幅图，最多有9个
+        mpf.make_addplot(force2DownList, scatter=True, markersize=60, panel=2, marker='.', color='g'),
+        # mpf.make_addplot(df[['force2Max']], scatter=True, markersize=60, panel=2, marker='v', color='dimgray'), #最大值前10
+        # mpf.make_addplot(df['force2Min'].tolist(), scatter=True, markersize=60, panel=2, marker='^', color='r'),#最小值前10
+
+
     ]
+
+
+    #atr通道
+    add_Plot2 = [
+        # 第二个蜡烛图
+        mpf.make_addplot(df, type='candle', ylabel='Candle'),
+        mpf.make_addplot(df[['ema21', 'ATR1', 'ATR2', 'ATR3', 'ATR-1', 'ATR-2', 'ATR-3']]),
+        mpf.make_addplot(low5List, scatter=True, markersize=40, marker='^', color='y'),  # 负向偏离最大
+        mpf.make_addplot(low5List2, scatter=True, markersize=40, marker='^', color='g'),  # 仅日线时有效，ema趋势向上，偏离最大
+        mpf.make_addplot(high5List, scatter=True, markersize=40, marker='v', color='r'),  # 正向偏离最大
+
+        # 按日来标记周bar转向上日子，0线下在最低级标，0向上在最高价标
+        mpf.make_addplot(bar021_W2List, scatter=True, markersize=100, marker='.', color='r'),
+
+        # 止损点
+        mpf.make_addplot(df['lossStop2'].tolist(), scatter=True, markersize=40, marker='_', color='r'),
+        mpf.make_addplot(lossStop2UpList, scatter=True, markersize=40, marker='_', color='b'),  # 周线向上用蓝色
+
+        # macd
+        mpf.make_addplot(df['barP'], type='bar', width=0.7, panel=1, color='black'),  # 正数柱子
+        mpf.make_addplot(df['barN'], type='bar', width=0.7, panel=1, color='dimgray'),  # 负数柱子
+        mpf.make_addplot(df[['dif']], panel=1, color='fuchsia', secondary_y=True),
+        mpf.make_addplot(df[['dea']], panel=1, color='b', secondary_y=True),
+        mpf.make_addplot(bar021List, panel=1, scatter=True, markersize=50, marker='^', color='y'),  # barKey值由-0转-1
+        mpf.make_addplot(bar021List2, panel=1, scatter=True, markersize=50, marker='^', color='g'),
+        # barKey值由-0转-1，周线向上趋势
+
+        # 强力指标
+        mpf.make_addplot(df[['force2']], ylabel='force Index', panel=2),  # panel表示幅图，最多有9个
+        mpf.make_addplot(force2DownList, scatter=True, markersize=60, panel=2, marker='.', color='g'), #
+
+
+        # mpf.make_addplot(df[['force2Max']], scatter=True, markersize=60, panel=2, marker='v', color='dimgray'),
+        # mpf.make_addplot(df['force2Min'].tolist(), scatter=True, markersize=60, panel=2, marker='^', color='r'),#最小值前10
+
+    ]
+
 
     # 设置k线图颜色
     my_color = mpf.make_marketcolors(
@@ -87,17 +246,46 @@ def getChart(df, filePath, type=''):
                                   marketcolors=my_color)
 
     mpf.plot(df,
-             title=code + '_' + type,
+             title= type,
              type='candle',
              style=my_style,
              volume=False, #交易量
              addplot=add_Plot,
              figratio=(2,1.2), #设置图片大小
+             # figratio=(2,3), #设置图片大小
              figscale=3,
              savefig = filePath + code + '_' + type + '.jpg'
-             # savefig = '/Users/miketam/Downloads/chart/' + code + '.jpg'
              )
+
+
+    #画atr多重通道
+    mpf.plot(df,
+             title=type,
+             type='candle',
+             style=my_style,
+             volume=False, #交易量
+             addplot=add_Plot2,  #多重通道
+             # panel_ratios=(1,1),
+             figratio=(2,1.2), #设置图片大小
+             # figratio=(2,3), #设置图片大小
+             figscale=3,
+             savefig = filePath + code + '_' + type + '_ATRChannel_' + '.jpg'
+             )
+
+    # mpf.plot(df,
+    #          title=code + '_' + type,
+    #          type='candle',
+    #          style=my_style,
+    #          volume=False, #交易量
+    #          addplot=add_Plot,
+    #          figratio=(2,1.2), #设置图片大小
+    #          # figratio=(2,3), #设置图片大小
+    #          figscale=3,
+    #          savefig = filePath + code + '_' + type + '.jpg'
+    #          )
+
     # mpf.show()
+
     # 下面方法可以访问美股
     # data = pdr.get_data_yahoo('IBM', '2020/9/1', '2020/10/1')
     # mpf.plot(data,type='candle')
@@ -131,10 +319,7 @@ def getBuyPointBaseEma26(df, i, lowDifEma26Array, days=4):
         lowDifEma26Array = df['lowDifEma26'].values
         del df['lowDifEma26']
     if i > days:
-        a = df.at[i,'date']
-        ema26 = df.at[i,'ema26']
         today = lowDifEma26Array[i]
-        temp = lowDifEma26Array[i-days:i+1]
         min  = lowDifEma26Array[i-days:i+1].min()
         if today == min:
             df.at[i, '5low'] = df.at[i,'low']
@@ -207,39 +392,102 @@ def getPriceDifEma26(df):
     return
 
 
+#计算ATR的3倍通道：基线是ema21，atr是10周期
+def getATRChannel(df):
+
+    df['price1'] = df['high'] - df['low']
+    df['price2'] = df['high']- df['close'].shift(1)
+    df['price3'] = df['close'].shift(1) - df['low']
+    df['TR'] = df[['price1', 'price2','price3']].max(axis=1)
+    del df['price1']
+    del df['price2']
+    del df['price3']
+
+    df['ATR'] = pd.DataFrame.ewm(df['TR'], span=14).mean() #用ema21平滑，长期趋势
+    df['ema21'] = pd.DataFrame.ewm(df['close'], span=21).mean() #用ema21平滑，长期趋势
+    df['ATR1'] = df['ema21'] + df['ATR']
+    df['ATR2'] = df['ema21'] + df['ATR']*2
+    df['ATR3'] = df['ema21'] + df['ATR']*3
+    df['ATR-1'] = df['ema21'] - df['ATR']
+    df['ATR-2'] = df['ema21'] - df['ATR']*2
+    df['ATR-3'] = df['ema21'] - df['ATR']*3
+
+    index = len(df)
+    df.at[index - 1, 'ATR1'] = df.iloc[index - 2]['ATR1'] * 2 - df.iloc[index - 3]['ATR1']
+    df.at[index - 1, 'ATR2'] = df.iloc[index - 2]['ATR2'] * 2 - df.iloc[index - 3]['ATR2']
+    df.at[index - 1, 'ATR3'] = df.iloc[index - 2]['ATR3'] * 2 - df.iloc[index - 3]['ATR3']
+    df.at[index - 1, 'ATR-1'] = df.iloc[index - 2]['ATR-1'] * 2 - df.iloc[index - 3]['ATR-1']
+    df.at[index - 1, 'ATR-2'] = df.iloc[index - 2]['ATR-2'] * 2 - df.iloc[index - 3]['ATR-2']
+    df.at[index - 1, 'ATR-3'] = df.iloc[index - 2]['ATR-3'] * 2 - df.iloc[index - 3]['ATR-3']
+    df.at[index - 1, 'ema21'] = df.iloc[index - 2]['ema21'] * 2 - df.iloc[index - 3]['ema21']
+    # del df['TR']
+    # del df['ema21']
+    # del df['ATR']
+    return df
+
+
+
 #计算脉冲系统
 def getPulseSystem(df):
+    # print(df)
+    # exit()
 
-    # df['c/ema12'] = df['close'] / df['ema12'] - 1
-    df['c/ema26'] = df['close'] / df['ema26'] - 1
-
-    df['h/ema26%'] = (df['high'] / df['ema26'] - 1) * 100
-    df['h/ema26%'] = df['h/ema26%'].round(0)
-
-    df['c/ema26%'] = (df['close'] / df['ema26'] - 1) * 100
-    df['c/ema26%'] = df['c/ema26%'].round(0)
-
-    df['l/ema26%'] = (df['low'] / df['ema26'] - 1) * 100
-    df['l/ema26%'] = df['l/ema26%'].round(0)
-
-
-
-    df['c/Channel'] = df['c/ema26'] / df['upCFactor'] * 10  #收盘价在通道的比例
-    df['c/Channel'] = df['c/Channel'].round(1)
-
-    df['h/Channel'] = (df['high'] / df['ema26'] - 1) / df['upCFactor'] * 10 #最高价在通道的比例
-    df['h/Channel'] = df['h/Channel'].round(1)
-
-    df['l/Channel'] =(df['low'] / df['ema26'] - 1) / df['upCFactor']  * 10 #最低价在通道的比例
-    df['l/Channel'] = df['l/Channel'].round(1)
+    # df['c/ema26'] = df['close'] / df['ema26'] - 1
+    #
+    # df['h/ema26%'] = (df['high'] / df['ema26'] - 1) * 100
+    # df['h/ema26%'] = df['h/ema26%'].round(0)
+    #
+    # df['c/ema26%'] = (df['close'] / df['ema26'] - 1) * 100
+    # df['c/ema26%'] = df['c/ema26%'].round(0)
+    #
+    # df['l/ema26%'] = (df['low'] / df['ema26'] - 1) * 100
+    # df['l/ema26%'] = df['l/ema26%'].round(0)
+    #
+    #
+    #
+    # df['c/Channel'] = df['c/ema26'] / df['upCFactor'] * 10  #收盘价在通道的比例
+    # df['c/Channel'] = df['c/Channel'].round(1)
+    #
+    # df['h/Channel'] = (df['high'] / df['ema26'] - 1) / df['upCFactor'] * 10 #最高价在通道的比例
+    # df['h/Channel'] = df['h/Channel'].round(1)
+    #
+    # df['l/Channel'] =(df['low'] / df['ema26'] - 1) / df['upCFactor']  * 10 #最低价在通道的比例
+    # df['l/Channel'] = df['l/Channel'].round(1)
 
     df['force'] = (df['close'] - df['close'].shift(1)) * df['volume']  #强力指数
     df['force2'] = pd.DataFrame.ewm(df['force'], span=2).mean()  #用ema2平滑，短期交易识别
-    df['force12'] = pd.DataFrame.ewm(df['force'], span=12).mean() #用ema12平滑，长期趋势
     maxValue = df['force2'].max()
     df['force2'] = df['force2']/maxValue * 100
-    maxValue2 = df['force12'].max()
-    df['force12'] = df['force12']/maxValue2 * 100
+
+    # 找到force2最大10个值、最小10个值
+    df2 = df.nlargest(20, 'force2')
+    listLarge = df2.index.values.tolist()
+    for i in listLarge:
+        df.at[i,'force2Max'] = df.at[i,'force2']
+
+    df2 = df.nsmallest(20, 'force2')
+    listSmall = df2.index.values.tolist()
+    for i in listSmall:
+        df.at[i,'force2Min'] = df.at[i,'force2']
+
+    # print(df)
+
+    # df = df.head(10)
+    # df2 = df.nsmallest(1, 'force2')
+    # # exit()
+    # df2['force2Max'] = 1
+    # print(df)
+
+    # df3 = df2.loc[:,'force2Max']
+    # df = pd.merge(df, df2, how='left')  # 合并 （把处理过的值何合入原来df）
+    # df = pd.merge(df, df2)  # 合并 （把处理过的值何合入原来df）
+
+
+
+    # df2 = df.nsmallest(10, 'force2')
+    # df2['force2Min'] = df2['force2']
+    # df = pd.merge(df, df2, how='left')  # 合并 （把处理过的值何合入原来df）
+
 
 
     df['ema12Trend'] = np.where(df['ema12'] > df['ema12'].shift(1), 'up', 'down')
@@ -454,6 +702,7 @@ def outPutXlsx(df,name='temp'):
 #在df计算macd
 def getDfMacd(df2):
     # #MACD相关
+
     df = df2[[5]]
     df.reset_index(level=0, inplace=True)
     df.columns = ['ds', 'y']
@@ -496,6 +745,7 @@ def getDfMacd(df2):
     #标记bar柱零线下从向下转向上，主要用于手工识别背离
     df['bar021'] =  np.where((df['bar'].shift(-1) > df['bar']) & (df['bar'].shift(1) > df['bar']) & (df['bar'] < 0) , df['bar'], np.nan)
         #注意只要1条，2条，
+
     return df2
 
 
