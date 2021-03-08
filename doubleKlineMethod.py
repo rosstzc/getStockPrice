@@ -192,20 +192,25 @@ def getWeeklyData(kLineWeekArray):
         lowDiffArray = np.array([])
         lowDifEma26Array = np.array([])
         highDifEma26Array = np.array([])
+        barArray = df['bar'].values #底部由向下转向上
+        bar021Array = df['bar021'].values #底部由向下转向上
+        bar120Array = df['bar120'].values  #顶部由向上转向下
+        closeArray = df['close'].values
+
 
         for i in range(index):  #这个循环效率，日后可以优化
-            df = getDeaDifTrend(i, df, 'deaHL', 'deaTrend')  #计算bar值在本周期的百分比
+            # df = getDeaDifTrend(i, df, 'deaHL', 'deaTrend')  #计算bar值在本周期的百分比
 
             # #估计bar值所在波形的位置
-            df = getBarPositionDf(barHLidList,df,i)
+            # df = getBarPositionDf(barHLidList,df,i)
             # print(df)
             # exit()
             # df = getScore(df,i,'w')
 
             #当bar为负，计算在一周期内，又'-0'转'-1'的次数，方便后续全网做排序，选次数多的来买
-            temp = getBarChangeCount(df,i,barChangeCount)
-            df = temp[0]
-            barChangeCount = temp[1]
+            # temp = getBarChangeCount(df,i,barChangeCount)
+            # df = temp[0]
+            # barChangeCount = temp[1]
 
 
             # 计算通道（4个月95%线柱包含在通道内）
@@ -228,6 +233,13 @@ def getWeeklyData(kLineWeekArray):
             temp = getSellPointBaseEma26(df, i, highDifEma26Array)
             df = temp[0]
             highDifEma26Array = temp[1]
+
+            #判断bar底背离情况
+            df = getDivergence(df, i, bar021Array, closeArray, barArray)
+
+            #判断bar顶背离情况
+            df = getDivergenceUp(df, i, bar120Array, closeArray,barArray)
+
 
         # print(df[[0,'deaHL','deaTrend','barRankP','bar','barHL','bTrend','po','bNo']])
         # exit()
@@ -310,59 +322,59 @@ def processKline(stockCodeArray, type, toFile = 1):
 
         kLineDf["增幅"] = kLineDf[5]/kLineDf[5].shift() - 1
         kLineDf["增幅"] = kLineDf["增幅"].apply(lambda x: format(x, '.2%'))
-        kLineDf["ma5"] = kLineDf[5].rolling(window=5).mean()  # 5日线
-        kLineDf["ma10"] = kLineDf[5].rolling(window=10).mean()  # 10日线
-        kLineDf["ma110"] = kLineDf[5].rolling(window=110).mean()  # 100
+        # kLineDf["ma5"] = kLineDf[5].rolling(window=5).mean()  # 5日线
+        # kLineDf["ma10"] = kLineDf[5].rolling(window=10).mean()  # 10日线
+        # kLineDf["ma110"] = kLineDf[5].rolling(window=110).mean()  # 100
 
-        kLineDf["Cma10"] = kLineDf[5]/kLineDf["ma10"] - 1
-        kLineDf["Cma10"] = kLineDf["Cma10"].apply(lambda x: format(x, '.2%'))
+        # kLineDf["Cma10"] = kLineDf[5]/kLineDf["ma10"] - 1
+        # kLineDf["Cma10"] = kLineDf["Cma10"].apply(lambda x: format(x, '.2%'))
 
-        kLineDf["ma5VsMa10"] = np.where(kLineDf['ma5'] > kLineDf['ma10'] ,"大于","") #两均线比较
+        # kLineDf["ma5VsMa10"] = np.where(kLineDf['ma5'] > kLineDf['ma10'] ,"大于","") #两均线比较
 
         #kLineDf["ma20"] = kLineDf[5].rolling(window=20).mean()  # 10日线
 
         #均线动态(收盘价)
-        kLineDf["ma5Trend"] = np.where( kLineDf['ma5'] > kLineDf['ma5'].shift(+1) ,"向上","")
-        kLineDf["ma10Trend"] = np.where( kLineDf['ma10'] > kLineDf['ma10'].shift(+1) ,"向上","")
+        # kLineDf["ma5Trend"] = np.where( kLineDf['ma5'] > kLineDf['ma5'].shift(+1) ,"向上","")
+        # kLineDf["ma10Trend"] = np.where( kLineDf['ma10'] > kLineDf['ma10'].shift(+1) ,"向上","")
 
         #5日线，10日线是否双向上
-        kLineDf["ma5ma10Trend"] = np.where((kLineDf["ma5Trend"]=="向上") & (kLineDf["ma10Trend"]=="向上"),"是","")
+        # kLineDf["ma5ma10Trend"] = np.where((kLineDf["ma5Trend"]=="向上") & (kLineDf["ma10Trend"]=="向上"),"是","")
 
         #收盘价是否大于ma110
-        kLineDf["大于ma110"] = np.where( kLineDf[5] > kLineDf['ma110'],"大于ma110","")
+        # kLineDf["大于ma110"] = np.where( kLineDf[5] > kLineDf['ma110'],"大于ma110","")
 
 
         new = ['用双向上基线做的预测值']  #新增一行，方便显示均线向上的最低值。一定要价true这个参数
         kLineDf = kLineDf.append(new,ignore_index=True)
 
         # 计算最低向上价格。把df列变为数组，在数组运算后再变为df
-        closePriceArray = kLineDf[5].values
-        ma5Array = kLineDf["ma5"].values
-        ma10Array = kLineDf["ma10"].values
-        kLineDf["priceForMa5Up"] = getPriceForMaUp(5,closePriceArray,ma5Array)
-        kLineDf["priceForMa10Up"] = getPriceForMaUp(10,closePriceArray,ma10Array)
-        kLineDf["priceForMa5Ma10Up"] = np.where(kLineDf["priceForMa5Up"] > kLineDf["priceForMa10Up"],kLineDf["priceForMa5Up"],kLineDf["priceForMa10Up"])#双向上最低价
-        kLineDf["growthForpriceForMa5Ma10Up"] = kLineDf["priceForMa5Ma10Up"]/ kLineDf[5].shift() - 1
-        kLineDf["growthForpriceForMa5Ma10Up"] = kLineDf["growthForpriceForMa5Ma10Up"].apply(lambda x: format(x, '.2%'))
+        # closePriceArray = kLineDf[5].values
+        # ma5Array = kLineDf["ma5"].values
+        # ma10Array = kLineDf["ma10"].values
+        # kLineDf["priceForMa5Up"] = getPriceForMaUp(5,closePriceArray,ma5Array)
+        # kLineDf["priceForMa10Up"] = getPriceForMaUp(10,closePriceArray,ma10Array)
+        # kLineDf["priceForMa5Ma10Up"] = np.where(kLineDf["priceForMa5Up"] > kLineDf["priceForMa10Up"],kLineDf["priceForMa5Up"],kLineDf["priceForMa10Up"])#双向上最低价
+        # kLineDf["growthForpriceForMa5Ma10Up"] = kLineDf["priceForMa5Ma10Up"]/ kLineDf[5].shift() - 1
+        # kLineDf["growthForpriceForMa5Ma10Up"] = kLineDf["growthForpriceForMa5Ma10Up"].apply(lambda x: format(x, '.2%'))
 
 
         # #给双向上指标增加动态
-        kLineDf["ma5ma10Trend"] = np.where((kLineDf["ma5ma10Trend"] == '是')&(kLineDf[4] < kLineDf["priceForMa5Ma10Up"]),'是，有向下', kLineDf["ma5ma10Trend"])
-        kLineDf["ma5ma10Trend"] = np.where((kLineDf["ma5ma10Trend"] == '')&(kLineDf[3] > kLineDf["priceForMa5Ma10Up"]),'有双向上', kLineDf["ma5ma10Trend"])
+        # kLineDf["ma5ma10Trend"] = np.where((kLineDf["ma5ma10Trend"] == '是')&(kLineDf[4] < kLineDf["priceForMa5Ma10Up"]),'是，有向下', kLineDf["ma5ma10Trend"])
+        # kLineDf["ma5ma10Trend"] = np.where((kLineDf["ma5ma10Trend"] == '')&(kLineDf[3] > kLineDf["priceForMa5Ma10Up"]),'有双向上', kLineDf["ma5ma10Trend"])
 
         # #双向上价是否在K线内
         # kLineDf["priceForMa5Ma10UpInKLine"] = np.where((kLineDf[4] < kLineDf["priceForMa5Ma10Up"])&(kLineDf["priceForMa5Ma10Up"] < kLineDf[3]),'Y','')
 
         #把双向上基线放放到收盘价作为参考，并更新ma5、ma10作为参考
         index = len(kLineDf)-1
-        # kLineDf.at[index,5] = kLineDf.at[index, 'priceForMa5Ma10Up']  #屏蔽这个预测收盘价
-        kLineDf["ma5"] = kLineDf[5].rolling(window=5).mean() #再次更新一下均线
-        kLineDf["ma10"] = kLineDf[5].rolling(window=10).mean()  #再次更新一下均线
-        kLineDf.at[index, 1] = x[0][1]
+        # kLineDf["ma5"] = kLineDf[5].rolling(window=5).mean() #再次更新一下均线
+        # kLineDf["ma10"] = kLineDf[5].rolling(window=10).mean()  #再次更新一下均线
+
+        kLineDf.at[index, 1] = x[0][1] #给最后一行增加code标记
 
         #双向上基线对比10日线
-        kLineDf["priceForMa5Ma10UpVsMa10"] = kLineDf["priceForMa5Ma10Up"] / kLineDf["ma10"] - 1
-        kLineDf["priceForMa5Ma10UpVsMa10"] = kLineDf["priceForMa5Ma10UpVsMa10"].apply(lambda x: format(x, '.2%'))
+        # kLineDf["priceForMa5Ma10UpVsMa10"] = kLineDf["priceForMa5Ma10Up"] / kLineDf["ma10"] - 1
+        # kLineDf["priceForMa5Ma10UpVsMa10"] = kLineDf["priceForMa5Ma10UpVsMa10"].apply(lambda x: format(x, '.2%'))
 
         # ##双向上价/收盘价
         # kLineDf["priceForMa5Ma10UpVsClosePrice"] = kLineDf["priceForMa5Ma10Up"] / kLineDf[5] - 1
@@ -384,11 +396,11 @@ def processKline(stockCodeArray, type, toFile = 1):
         # 去掉倒数第二行的bar021数据，因为这行是由于之前新增行数据造成
         kLineDf.at[len(kLineDf) - 2, 'bar021'] = np.nan
 
+
+
         #判断dif、dea波浪线高低点
-        # kLineDf['difHL'] =  np.where((kLineDf['dif'] - kLineDf['dif'].shift(1) >= 0 )&(kLineDf['dif'] - kLineDf['dif'].shift(-1) >= 0 ),'H',kLineDf['dif'])
-        # kLineDf['difHL'] =  np.where((kLineDf['dif'] - kLineDf['dif'].shift(1) <= 0 )&(kLineDf['dif'] - kLineDf['dif'].shift(-1) <= 0 ),'L',kLineDf['difHL'])
-        kLineDf['deaHL'] =  np.where((kLineDf['dea'] - kLineDf['dea'].shift(1) >= 0 )&(kLineDf['dea'] - kLineDf['dea'].shift(-1) >= 0 ),'H',kLineDf['dea'])
-        kLineDf['deaHL'] =  np.where((kLineDf['dea'] - kLineDf['dea'].shift(1) <= 0 )&(kLineDf['dea'] - kLineDf['dea'].shift(-1) <= 0 ),'L',kLineDf['deaHL'])
+        # kLineDf['deaHL'] =  np.where((kLineDf['dea'] - kLineDf['dea'].shift(1) >= 0 )&(kLineDf['dea'] - kLineDf['dea'].shift(-1) >= 0 ),'H',kLineDf['dea'])
+        # kLineDf['deaHL'] =  np.where((kLineDf['dea'] - kLineDf['dea'].shift(1) <= 0 )&(kLineDf['dea'] - kLineDf['dea'].shift(-1) <= 0 ),'L',kLineDf['deaHL'])
 
         # # 计算bar的HL点
         # kLineDf['barHL'] = np.where((kLineDf['bar'].shift(1) > 0) & (kLineDf['bar'] < 0), 'H', '')
@@ -398,29 +410,15 @@ def processKline(stockCodeArray, type, toFile = 1):
 
 
         #计算dea/price
-        kLineDf['deaP'] = kLineDf['dea'] / kLineDf[5] * 100
+        # kLineDf['deaP'] = kLineDf['dea'] / kLineDf[5] * 100
 
 
         #计算增量（今天减昨天）、增量/股价比，然后转化为百分数
-        kLineDf['difGrowth'] = (kLineDf['dif'] - kLineDf['dif'].shift(1))
-        kLineDf['difGP'] = kLineDf['difGrowth'] / kLineDf[5] * 100
-        kLineDf['deaGrowth'] = kLineDf['dea'] - kLineDf['dea'].shift(1)
-        kLineDf['deaGP'] = kLineDf['deaGrowth'] / kLineDf[5] * 100
+        # kLineDf['difGrowth'] = (kLineDf['dif'] - kLineDf['dif'].shift(1))
+        # kLineDf['difGP'] = kLineDf['difGrowth'] / kLineDf[5] * 100
+        # kLineDf['deaGrowth'] = kLineDf['dea'] - kLineDf['dea'].shift(1)
+        # kLineDf['deaGP'] = kLineDf['deaGrowth'] / kLineDf[5] * 100
 
-        # kLineDf['difGrowth'] =kLineDf['difGrowth'].apply(lambda x: format(x, '.2%'))
-        # kLineDf['difGP'] = kLineDf['difGP'].apply(lambda x: format(x, '.2%'))
-        # kLineDf['deaGrowth'] =  kLineDf['deaGrowth'].apply(lambda x: format(x, '.2%'))
-        # kLineDf['deaGP'] =  kLineDf['deaGP'].apply(lambda x: format(x, '.2%'))
-
-
-        # print(kLineDf[['dif','difHL','deaGrowth','difGP','dea','deaHL','deaGrowth' ,'deaGP']])
-        # exit()
-        ##制作图macd
-        # plt.plot(df.ds, dif, label='dif',color='orange')
-        # plt.plot(df.ds, deaa, label='dea', )
-        # # plt.plot(df.ds, macd, label='macd', color='Magenta')
-        # plt.legend(loc='upper left')
-        # plt.show()
 
 # ########下面开始计算ema的数据##########
 #         kLineDf['closeEma'] = kLineDf[5]  #为方便ema双向上的预测收盘价，新增一列收盘价
@@ -533,6 +531,7 @@ def processKline(stockCodeArray, type, toFile = 1):
         # print(dfAppend)
         # dfAppend.to_excel('/Users/miketam/Downloads/processKline.xlsx', float_format='%.5f',index=False)
     # return [dfAppend,dfWeekAppend,dfHourAppend]
+
     return [dfAppend,dfWeekAppend]
 
 def getHourKline(stockCodeArray, start_date, end_date):

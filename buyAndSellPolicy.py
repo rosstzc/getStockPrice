@@ -114,14 +114,15 @@ def getKline(dfArray,stockName):
         # path =  '/Users/miketam/Downloads/chartTest/day/'
         # getChartTest(df.copy(),path,'day')
 
-
+        #从前往后画图，方便自己做看图
 
         #画图
-        path =  '/Users/miketam/Downloads/chart/day/'
-        getChart(df.copy(),path,'day')
+        today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
+        path =  '/Users/miketam/Downloads/'+ today + '/chart/day/'
+        getChart(df.copy(), path, 'tail', 150, 'day')
 
         # df = df[[ 'date','code','open','high','low','5low','5high','close', '增幅','volume', 'bar','bar021', 'bTrend', 'po', 'barKey', 'ema12Trend','ema26Trend','脉冲系统','force2','force12','barKeyCh','ema12','ema26','h/ema26%','c/ema26%','l/ema26%','upCFactor', 'upC','downC','h/Channel','c/Channel','l/Channel','lossStop','lossStop2', 'ema12Trend_W','ema26Trend_W']]
-        df = df[[ 'date','date_W','code','open','high','low','5low','5high','close', '增幅','volume', 'bar','bar021','bar021_W2', 'bTrend', 'po', 'barKey', 'ema12Trend','ema26Trend','脉冲系统','force2','force2Max','barKeyCh','ema12','ema26','upCFactor', 'upC','downC','lossStop','lossStop2', 'ema12Trend_W','ema26Trend_W','ema21', 'ema21_W', 'ATR1','ATR2','ATR3','ATR-1','ATR-2','ATR-3']]
+        df = df[[ 'date','date_W','code','open','high','low','5low','5high','close', '增幅','volume','diver','diverTest','diverUp', 'diverUpTest','bar','bar021','bar021_W2', 'bTrend', 'po', 'barKey', 'ema12Trend','ema21Trend','ema26Trend','脉冲系统','force2','force2Max','ema12','ema26','upCFactor', 'upC','downC','lossStop','lossStop2', 'ema12Trend_W','ema26Trend_W','ema21', 'ema21_W', 'ATR1','ATR2','ATR3','ATR-1','ATR-2','ATR-3','bar021_W22','bar120_W2']]
         df = df.iloc[::-1] #倒序，让最近排在前面
 
         dfAppend = dfAppend.append(df.head(200))
@@ -208,17 +209,86 @@ def getKline(dfArray,stockName):
     name = name+ '-' +str(len(dfArray)) + '-' + today
     outPutXlsx(dfAppend2,name)
 
-    #按日取周bar值从向下转向上
+    #按日取周bar值从向下转向上（0下）
     dfAppend2: DataFrame = pd.DataFrame() #重置df
     for i in dateArray:
         df2 = dfAppend[(dfAppend['date'] == i)].copy()
         df3 = df2[df2['bar021_W2'] == 1]
         dfAppend2 = dfAppend2.append(df3)
-    name = '日数据：按日取周bar值从向下转向上'
+    name = '日数据：按日取周bar值从向下转向上(0下)'
     today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
     name = name+ '-' +str(len(dfArray)) + '-' + today
     outPutXlsx(dfAppend2,name)
 
+    # 按日取周bar值从向下转向上（0上）
+    dfAppend2: DataFrame = pd.DataFrame() #重置df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        df3 = df2[df2['bar021_W22'] == 1]
+        dfAppend2 = dfAppend2.append(df3)
+    name = '日数据：按日取周bar值从向下转向上（0上）'
+    today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
+    name = name+ '-' +str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2,name)
+
+    # 按日取周bar值从向上转向下
+    dfAppend2: DataFrame = pd.DataFrame() #重置df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        df3 = df2[df2['bar120_W2'] == 1]
+        dfAppend2 = dfAppend2.append(df3)
+    name = '日数据：按日取周bar值从向上转向下'
+    today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
+    name = name+ '-' +str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2,name)
+
+    # 日bar底部背离
+    dfAppend2: DataFrame = pd.DataFrame()  # 重置df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        df3 = df2.loc[df2['diver'] != ' ']
+        dfAppend2 = dfAppend2.append(df3)
+    name = '日数据：日bar底部背离'
+    today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
+    name = name + '-' + str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2, name)
+
+    # 日bar底部背离
+    dfAppend2: DataFrame = pd.DataFrame()  # 重置df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        df3 = df2.loc[df2['diverTest'] != ' ']
+        dfAppend2 = dfAppend2.append(df3)
+    name = '日数据：日bar准备底部背离'
+    today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
+    name = name + '-' + str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2, name)
+
+
+    # 日bar顶背离
+    dfAppend2: DataFrame = pd.DataFrame()  # 重置df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        # df3 = df2.loc[df2['diverUp'].notnull()]
+        df3 = df2.loc[df2['diverUp'] != ' ']
+        dfAppend2 = dfAppend2.append(df3)
+    name = '日数据：日bar顶部背离'
+    today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
+    name = name + '-' + str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2, name)
+
+
+    # 日bar准备顶背离
+    dfAppend2: DataFrame = pd.DataFrame()  # 重置df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        # df3 = df2.loc[df2['diverUp'].notnull()]
+        df3 = df2.loc[df2['diverUpTest'] != ' ']
+        dfAppend2 = dfAppend2.append(df3)
+    name = '日数据：日bar准备顶部背离'
+    today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
+    name = name + '-' + str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2, name)
 
     return dfAppend
 
@@ -232,6 +302,8 @@ def getWeekPriceDifEma26(dfArray, stockName):
     dfAppend2: DataFrame = pd.DataFrame() #
     #把所有df合并
     x = 0
+
+
     for df in dfArray:
         if len(stockName) > 1:
             df['code'] = df['code'] +'.' +stockName[x]
@@ -246,12 +318,14 @@ def getWeekPriceDifEma26(dfArray, stockName):
         condition1 = (df['ema12Trend'] == 'up') & (df['ema100Trend'] == 'up')
         condition2 = (df['增幅'] < 0) & (df['增幅'].shift(1) > 0)
 
+
         #画图
-        path =  '/Users/miketam/Downloads/chart/week/'
-        getChart(df.copy(), path,'week')
+        today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
+        path =  '/Users/miketam/Downloads/'+ today +'/chart/week/'
+        getChart(df.copy(), path, 'tail', 130, 'week')
 
         # df = df[['code', 'date','open','high','low', 'close', '5low','增幅', 'bar', 'bTrend', 'barKey','bar021','bNo', 'ema12Trend','ema26Trend','ema100Trend','脉冲系统','force2','force12','barKeyCh','ema12','ema26','ema100','upCFactor', 'upC','downC','c/ema26','h/Channel','c/Channel','l/Channel','lossStop','lossStop2']]
-        df = df[['code', 'date','open','high','low', 'close', '5low','增幅', 'bar', 'bTrend', 'barKey','bar021','bNo', 'ema12Trend','ema26Trend','ema100Trend','脉冲系统','force2','barKeyCh','ema12','ema26','ema100','upCFactor', 'upC','downC','lossStop','lossStop2','ATR1','ATR2','ATR3','ATR-1','ATR-2','ATR-3']]
+        df = df[['code', 'date','open','high','low', 'close', '5low','增幅', 'bar', 'diver','diverTest','diverUp','diverUpTest','bTrend', 'barKey','bar021', 'ema12Trend','ema26Trend','脉冲系统','force2','ema12','ema26','upCFactor', 'upC','downC','lossStop','lossStop2','ATR1','ATR2','ATR3','ATR-1','ATR-2','ATR-3']]
         df['key'] = np.where(condition1 & condition2, '0', '')
         dfAppend = dfAppend.append(df)
 
@@ -306,6 +380,55 @@ def getWeekPriceDifEma26(dfArray, stockName):
         df3 = df2[df2['low'] < df2['ATR-2']]
         dfAppend2 = dfAppend2.append(df3)
     name = '周数据：这周最低价突破ATR-2通道'
+    today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
+    name = name + '-' + str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2, name)
+
+
+    # 周bar底部背离
+    dfAppend2: DataFrame = pd.DataFrame()  # 重置df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        df3 = df2.loc[df2['diver'] != ' ']
+        dfAppend2 = dfAppend2.append(df3)
+    name = '周数据：周bar底部背离'
+    today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
+    name = name + '-' + str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2, name)
+
+    # 周bar准备底部背离
+    dfAppend2: DataFrame = pd.DataFrame()  # 重置df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        df3 = df2.loc[df2['diverTest'] != ' ']
+        dfAppend2 = dfAppend2.append(df3)
+    name = '周数据：周bar准备底部背离'
+    today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
+    name = name + '-' + str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2, name)
+
+
+
+    # 周bar顶背离
+    dfAppend2: DataFrame = pd.DataFrame()  # 重置df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        # df3 = df2.loc[df2['diverUp'].notnull()]
+        df3 = df2.loc[df2['diverUp'] != ' ']
+        dfAppend2 = dfAppend2.append(df3)
+    name = '周数据：周bar顶部背离'
+    today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
+    name = name + '-' + str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2, name)
+
+    # 周bar准备顶背离
+    dfAppend2: DataFrame = pd.DataFrame()  # 重置df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        # df3 = df2.loc[df2['diverUp'].notnull()]
+        df3 = df2.loc[df2['diverUp'] != ' ']
+        dfAppend2 = dfAppend2.append(df3)
+    name = '周数据：周bar准备顶部背离'
     today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
     name = name + '-' + str(len(dfArray)) + '-' + today
     outPutXlsx(dfAppend2, name)

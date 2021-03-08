@@ -29,10 +29,23 @@ def checkPolicy(stockCodeArray,stockName):
     # 'barHL_W', 'bTrend_W', 'barKey_W', 'k_W', 'd_W', 'j_W', 'kTrend_W', 'jTrend_W', 'k50_W', 'j20_W', '加分_W', '减分_W', '加分描述_W', '减分描述_W', 'deaTrend_W',
     # 'barRankP_W', 'bNo_W', 'barKey_H', '加分', '减分', '加分描述', '减分描述', 'bNo', 'barKeyCh', 'poValue', 'pEma26']
 
-    ##周数据处理#####
-    dfWeekArray = getFileOnLocalWeek(stockCodeArray, stockName)  # 把周线数据单独处理和输出
 
-    # 策略 ：
+    #有空测试以下代码运行时间
+    #用多进程提升以下速度  https://juejin.cn/post/6844903838000873485
+
+
+    # 创建当天目录
+    today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
+    mkdir("/Users/miketam/Downloads/" + today + '/')
+    mkdir("/Users/miketam/Downloads/" + today + '/chart/week/')
+    mkdir("/Users/miketam/Downloads/" + today + '/chart/day/')
+
+
+    ##周数据处理#####
+    tis1 = time.perf_counter()
+
+
+    dfWeekArray = getFileOnLocalWeek(stockCodeArray, stockName)  # 把周线数据单独处理和输出
 
     # 策略：单纯根据周股价偏离程度排序（周线比日线偏离更大），捕捉哪些短期反弹行情
     result = getWeekPriceDifEma26(dfWeekArray, stockName)
@@ -41,9 +54,13 @@ def checkPolicy(stockCodeArray,stockName):
 
     # 策略： 根据周bar值，0线上bar转向下次数和偏离通道程度，捕捉哪些持续上升的股票
 
+    tis2 = time.perf_counter()
+    print("周数据时间：")
+    print(tis2 - tis1)
 
 
     ##日数据处理#####
+    tis1 = time.perf_counter()
 
     # #判断本地是否有processFor处理后的文件，如果有直接读取； 否则调用processFor来生成文件导出到本地
     dfArray = getFileOnLocal(stockCodeArray, stockName)
@@ -51,6 +68,9 @@ def checkPolicy(stockCodeArray,stockName):
     # #取股票最近N日k线数据，方便查看
     result = getKline(dfArray, stockName)
 
+    tis2 = time.perf_counter()
+    print("日数据时间：")
+    print( tis2 - tis1)
 
 
     # 通过止损点来设计交易策略
@@ -79,8 +99,6 @@ def checkPolicy(stockCodeArray,stockName):
 
     # 策略：用kdj、ma100、日macd趋势、周macd趋势来识别买点
     # result = buyPolicyMacdKdj(dfArray,stockName)
-
-
 
 
     return
@@ -135,7 +153,9 @@ def getFileOnLocalWeek(stockCodeArray, stockName):
     else:
         fileName = fileType + '_' + str(len(stockCodeArray)) + '_' + today
         # fileName = fileType + '_' + str(len(stockCodeArray)) + '_' + today + '.csv'
-    filePath = "/Users/miketam/Downloads/" + fileName
+
+
+    filePath =  "/Users/miketam/Downloads/"+today + '/' + fileName
     if os.path.exists(filePath+'.csv'):
         #从本地去
         df = pd.read_csv(filePath + '.csv',sep=',',encoding="gb2312", dtype={'barKey': str,'barKey_W':str})
@@ -162,7 +182,9 @@ def getFileOnLocal(stockCodeArray, stockName):
     else:
         fileName = fileType + '_' + str(len(stockCodeArray)) + '_' + today
         # fileName = fileType + '_' + str(len(stockCodeArray)) + '_' + today + '.csv'
-    filePath = "/Users/miketam/Downloads/" + fileName
+
+
+    filePath =  "/Users/miketam/Downloads/"+today + '/' + fileName
     if os.path.exists(filePath+'.csv'):
         #从本地去
         df = pd.read_csv(filePath + '.csv',sep=',',encoding="gb2312", dtype={'barKey': str,'barKey_W':str})
@@ -181,7 +203,7 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
     #
     # tis2 = time.perf_counter()
     # print(tis2 - tis1)
-    #有时在这测试代码#
+    #有时在这测试代码，计算运行时间#
 
 
     #拆分checkPolicy处理后csv大文件，然后按股票代码生成单个csv文件
@@ -212,6 +234,8 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
     dfKline = processKline(stockCodeArray, type = 'all', toFile=toFile)
 
     dfday = dfKline[0] #取日线数据
+
+
     dfweek = dfKline[1] #取周线数据
     # dfMonth = dfKline[2] #取周线数据
     # dfhour = dfKline[2]
@@ -221,11 +245,14 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
     # dfMonthArray = dfDivide(stockCodeArray,dfMonth) #把df拆分，每个股票一个df
     # dfhourArray = dfDivide(stockCodeArray,dfhour) #把df拆分，每个股票一个df
 
+
     resultArray = []
     dfAppend: DataFrame = pd.DataFrame()
 
+
     #处理每一个股票的df
     for x in range(len(dfDayArray)):
+
         df = dfDayArray[x]
         dfweek = dfweekArray[x]
         # dfhour = dfhourArray[x]
@@ -291,6 +318,11 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
         lowDiffArray = np.array([])
         lowDifEma26Array = np.array([])
         highDifEma26Array = np.array([])
+        barArray = df['bar'].values
+        bar021Array = df['bar021'].values #底部由向下转向上
+        bar120Array = df['bar120'].values  #顶部由向上转向下
+        closeArray = df['close'].values
+
 
 
         index = len(df) - 1 #得到索引,减1是因为之前增加一个不规则的行数据
@@ -301,16 +333,15 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
         for i in range(index):
             code = df.at[0,'code']
 
-
             # #估计bar值所在波形的位置
             df = getBarPositionDf(barHLidList,df,i)  #里面的describe函数很慢
             #计算得分
             # df = getScore(df,i,'d')
 
             #当bar为负，计算在一周期内，又'-0'转'-1'的次数，方便后续全网做排序，选次数多的来买
-            temp = getBarChangeCount(df,i,barChangeCount)
-            df = temp[0]
-            barChangeCount = temp[1]
+            # temp = getBarChangeCount(df,i,barChangeCount)
+            # df = temp[0]
+            # barChangeCount = temp[1]
 
 
             # 计算通道（4个月95%线柱包含在通道内）
@@ -333,6 +364,12 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
             df = temp[0]
             highDifEma26Array = temp[1]
 
+
+            #判断bar底背离情况
+            df = getDivergence(df, i, bar021Array, closeArray, barArray)
+
+            #判断bar顶背离情况
+            df = getDivergenceUp(df, i, bar120Array, closeArray,barArray)
 
             # #识别当前点的DEA、dif是向上或向下
             # # df = getMacdTrend(i,df,'deaHL','deaTrend')
@@ -410,8 +447,18 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
                     #每天更新周bar值的转向（若当天的动态周bar值相对上周是向上，就标记为1，还有前一周也符合条件）
                     if p > 1:
                         df.at[i,'bar021_W2'] = np.where(
-                            (dfweek.at[p-2,'bar_W'] > dfweek.at[p-1,'bar_W']) & (df.at[i,'bar_W2'] > dfweek.at[p-1,'bar_W']) & (dfweek.at[p-1,'bar_W'] < 0), 1,
-                            np.nan)
+                            (dfweek.at[p-2,'bar_W'] > dfweek.at[p-1,'bar_W']) & (df.at[i,'bar_W2'] > dfweek.at[p-1,'bar_W']) & (dfweek.at[p-1,'bar_W'] < 0), 1,np.nan) #0线下，由下转上
+                        df.at[i,'bar021_W22'] = np.where(
+                            (dfweek.at[p-2,'bar_W'] > dfweek.at[p-1,'bar_W']) & (df.at[i,'bar_W2'] > dfweek.at[p-1,'bar_W']) & (dfweek.at[p-1,'bar_W'] > 0), 1,np.nan) #0线上，由下转上
+ #0线下，由向下转向上
+                            # (dfweek.at[p-2,'bar_W'] > dfweek.at[p-1,'bar_W']) & (df.at[i,'bar_W2'] > dfweek.at[p-1,'bar_W']) & (dfweek.at[p-1,'bar_W']> 0), 1,  # 0线上，由向下转向上
+
+                        #每天更新周bar从向上转向下
+                        df.at[i, 'bar120_W2'] = np.where(
+                            (dfweek.at[p - 2, 'bar_W'] < dfweek.at[p - 1, 'bar_W']) & (df.at[i, 'bar_W2'] < dfweek.at[p - 1, 'bar_W']), 1,np.nan) # 由向上转向下（0上或0下）
+
+
+
 
                     #
                     # df['bar021'] = np.where(
@@ -455,14 +502,17 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
             # wincount = sell[7]
             # lossReduce = sell[8]
             # winReduce = sell[9]
-        # print(df)
+        # print(df.tail(10))
         # print('33')
         # exit()
+
         df = getPulseSystem(df) #
+
         df = getATRChannel(df) #生成ATR通道
+
+
         #做一下ATR通道预测
         # df = df[['date','code','ATR1','ATR2','ATR3','ATR-1','ATR-2','ATR-3',]]
-
 
 
         resultStr = '股票：' +code + '，购买次数：' + str(buycount)  + "，盈利次数：" + str(wincount) + "，亏损次数：" + str(losscount),'因macd少盈利：' + str(winReduce) +\
@@ -490,6 +540,7 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
         # print(df[[0,'deaHL','deaTrend','barRankP','bar','barHL','bTrend','po','bNo']])
 
     path = filePath
+
     dfAppend.to_csv(path + ".csv", encoding="gbk", index=False)
     dfAppend.to_excel(path + '.xlsx', float_format='%.5f',index=False)
 

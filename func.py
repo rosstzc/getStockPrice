@@ -10,6 +10,9 @@ import mplfinance as mpf
 from multiprocessing import Process
 
 
+
+
+
 #周期内背离
     #算法说明：1）底背离：从最后一个柱子往前找到-0转-1的所有点， 从后向前比较，
 
@@ -95,13 +98,15 @@ def getChartTest(df, filePath, type=''):
     return
 
 #画图
-def getChart(df, filePath, type=''):
+def getChart(df, filePath,headOrTail,days,type=''):
     # 画图
     code = df.iat[1,1]#股票代码
     # df.reset_index(drop=True, inplace=True)
     df.drop(index=len(df) - 1, inplace=True)
-    # df = df.iloc[::-1]
-    df = df.tail(100)
+    if headOrTail == 'tail': #从尾部取指定数量的行
+        df = df.tail(days)
+    if headOrTail == 'head':
+        df = df.head(days)
     # df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
     df['date'] = pd.to_datetime(df['date'])
     df.set_index('date', inplace=True)
@@ -136,9 +141,27 @@ def getChart(df, filePath, type=''):
     force2DownList = df['force2Down'].tolist()
     force2DownList[1] = df['force2'].tolist()[1] #避免数组空值，随便弄一个值
 
+    # 标记底背离
+    df.loc[df['diver'] != ' ', 'diverTemp'] = df['bar'] * 1.4
+    DiverTempList = df['diverTemp'].tolist()
+    DiverTempList[0] = df['bar'].tolist()[0]  # 避免空值，导致不能画图
+    #标记准备底背离
+    df.loc[df['diverTest'] != ' ', 'diverTemp'] = df['bar'] * 1.2
+    DiverTestList = df['diverTemp'].tolist()
+    DiverTestList[0] = df['bar'].tolist()[0]  # 避免空值，导致不能画图
 
-    if type == 'day': #标记周线ema向上时
-        condition = (df['ema26Trend_W'] == 'up') | (df['ema12Trend_W'] == 'up')
+    # 标记顶背离
+    df.loc[df['diverUp'] != ' ', 'diverUpTemp'] = df['bar'] * 1.4
+    DiverUpTempList = df['diverUpTemp'].tolist()
+    DiverUpTempList[0] = df['bar'].tolist()[0]  # 避免空值，导致不能画图
+    # 标准备记顶背离
+    df.loc[df['diverUpTest'] != ' ', 'diverUpTemp'] = df['bar'] * 1.2
+    DiverUpTestList = df['diverUpTemp'].tolist()
+    DiverUpTestList[0] = df['bar'].tolist()[0]  # 避免空值，导致不能画图
+
+
+    if type == 'day':
+        condition = (df['ema26Trend_W'] == 'up') | (df['ema12Trend_W'] == 'up')         #标记周线ema向上时
         df['bar0212'] = np.where((df['bar021'] < 0) & condition, df['bar021']*1.20, np.nan)
         bar021List2 = (df['bar0212']).tolist()
         bar021List2[0] = df['bar'].tolist()[1]
@@ -152,13 +175,39 @@ def getChart(df, filePath, type=''):
         df.loc[df['bar021_W2'] == 1, 'bar021_W2'] = df['low']*0.99
         bar021_W2List = df['bar021_W2'].tolist()
         bar021_W2List[0] = df['low'].tolist()[1]  # 避免空值，导致不能画图
+
+        df.loc[df['bar021_W22'] == 1, 'bar021_W22'] = df['low']*0.99
+        bar021_W22List = df['bar021_W22'].tolist()
+        bar021_W22List[0] = df['low'].tolist()[1]  # 避免空值，导致不能画图
         #用蓝色标记一下周五
+
+        # 按日来标记bar有向上转向下
+        df.loc[df['bar120_W2'] == 1, 'bar120_W2'] = df['high'] * 1.01
+        bar120_W2List = df['bar120_W2'].tolist()
+        bar120_W2List[0] = df['high'].tolist()[1]  # 避免空值，导致不能画图
+
+
 
     else:
         # 按日来标记周bar转向上日子，0线下在最低级标，0向上在最高价标
-        df['bar021_W2'] = np.nan
+        df['bar021_W2'] = np.nan #0下
         bar021_W2List = df['bar021_W2'].tolist()
         bar021_W2List[0] = df['low'].tolist()[1]  # 避免空值，导致不能画图
+        df['bar021_W22'] = np.nan #0上
+        bar021_W22List = df['bar021_W22'].tolist()
+        bar021_W22List[0] = df['low'].tolist()[1]  # 避免空值，导致不能画图
+
+        df['bar120_W2'] = np.nan
+        bar120_W2List = df['bar120_W2'].tolist()
+        bar120_W2List[0] = df['high'].tolist()[1]  # 避免空值，导致不能画图
+
+        # df['diverTemp'] = np.nan
+        # DiverTempList = df['diverTemp'].tolist()
+        # DiverTempList[0] = df['bar'].tolist()[1]   # 避免空值，导致不能画图
+        #
+        # df['diverUpTemp'] = np.nan
+        # DiverUpTempList = df['diverUpTemp'].tolist()
+        # DiverUpTempList[0] = df['bar'].tolist()[1]   # 避免空值，导致不能画图
 
     # df['ema26+2'] = df['ema26'] * 1.02
     print(df.iat[1,0])
@@ -203,10 +252,18 @@ def getChart(df, filePath, type=''):
         mpf.make_addplot(df[['ema21', 'ATR1', 'ATR2', 'ATR3', 'ATR-1', 'ATR-2', 'ATR-3']]),
         mpf.make_addplot(low5List, scatter=True, markersize=40, marker='^', color='y'),  # 负向偏离最大
         mpf.make_addplot(low5List2, scatter=True, markersize=40, marker='^', color='g'),  # 仅日线时有效，ema趋势向上，偏离最大
-        mpf.make_addplot(high5List, scatter=True, markersize=40, marker='v', color='r'),  # 正向偏离最大
+        mpf.make_addplot(high5List, scatter=True, markersize=40, marker='v', color='gray'),  # 正向偏离最大
 
         # 按日来标记周bar转向上日子，0线下在最低级标，0向上在最高价标
         mpf.make_addplot(bar021_W2List, scatter=True, markersize=100, marker='.', color='r'),
+        mpf.make_addplot(bar021_W22List, scatter=True, markersize=150, marker='.', color='orange'),  #0上，由向下转向上
+        mpf.make_addplot(bar120_W2List, scatter=True, markersize=100, marker='.', color='y'), #由向上转向下
+
+
+
+        # 脉冲系统，做多，做空
+        mpf.make_addplot(df['sellLabel'].tolist(), scatter=True, markersize=40, marker='.', color='gray'),
+        mpf.make_addplot(df['buyLabel'].tolist(), scatter=True, markersize=40, marker='.', color='gray'),
 
         # 止损点
         mpf.make_addplot(df['lossStop2'].tolist(), scatter=True, markersize=40, marker='_', color='r'),
@@ -220,6 +277,13 @@ def getChart(df, filePath, type=''):
         mpf.make_addplot(bar021List, panel=1, scatter=True, markersize=50, marker='^', color='y'),  # barKey值由-0转-1
         mpf.make_addplot(bar021List2, panel=1, scatter=True, markersize=50, marker='^', color='g'),
         # barKey值由-0转-1，周线向上趋势
+
+        # 标记底背离点
+        mpf.make_addplot(DiverTestList,panel=1, scatter=True, markersize=200, marker='.', color='gray'), #准备底背离
+        mpf.make_addplot(DiverTempList,panel=1, scatter=True, markersize=200, marker='.', color='r'),
+        #标记顶部背离点
+        mpf.make_addplot(DiverUpTestList, panel=1, scatter=True, markersize=200, marker='.', color='gray'),#准备顶背离
+        mpf.make_addplot(DiverUpTempList, panel=1, scatter=True, markersize=200, marker='.', color='b'),
 
         # 强力指标
         mpf.make_addplot(df[['force2']], ylabel='force Index', panel=2),  # panel表示幅图，最多有9个
@@ -291,6 +355,62 @@ def getChart(df, filePath, type=''):
     # mpf.plot(data,type='candle')
     # mpf.plot(data, type='ohlc', mav=4)
 
+#判断底部背离数据
+def getDivergence(df, i, bar021Array, closeArray, barArray):
+    if i == 0:
+        df['diver'] = ' '  #初始化
+        df['diverTest'] = ' '  #初始化
+    bar021 = bar021Array[i]
+    close = closeArray[i]
+    if bar021 < 0: #这个从下转向上的点存在
+        for j in range(1,150):  #向上循环7个月
+            if i - j > 0:
+                bar021Previous = bar021Array[i-j]
+                closePrevious = closeArray[i-j]
+                if bar021Previous < 0 and bar021Previous < bar021 and closePrevious > close: #找到股价比当前高，但bar柱比当前长日期
+                    # print('这日期有背离：' + str(df.at[i,'date']) + '，之前日期点是：' + str(df.at[i-j,'date']))
+                    df.at[i,'diver'] = df.at[i,'diver'] + ',' + df.at[i-j,'date']
+
+    #把每天的bar值都跟之前bar021比较，看看底背离情况
+    bar = barArray[i]
+    if bar < 0:
+        for x in range(1,150):
+            if i - x > 0:
+                barPrevious = barArray[i-1]
+                bar021Previous = bar021Array[i-x]
+                closePrevious = closeArray[i-x]
+                if bar021Previous < 0 and bar021Previous < bar and closePrevious > close and bar < barPrevious:
+                    df.at[i, 'diverTest'] = df.at[i, 'diverTest'] + ',' + df.at[i - x, 'date']
+    return  df
+
+
+
+#判断顶部背离数据
+def getDivergenceUp(df, i, bar120Array, closeArray, barArray):
+    if i == 0:
+        df['diverUp'] = ' '  #初始化
+        df['diverUpTest'] = ' '  #初始化
+    bar120 = bar120Array[i]
+    close = closeArray[i]
+    if bar120 > 0: #这个从下转向上的点存在
+        for j in range(1,65):  #向上循环7个月
+            if i - j > 0:
+                bar120Previous = bar120Array[i-j]
+                closePrevious = closeArray[i-j]
+                if bar120Previous > bar120 and closePrevious < close: #找到股价比当前低，但bar柱比当前长日期
+                    # print('这日期有背离：' + str(df.at[i,'date']) + '，之前日期点是：' + str(df.at[i-j,'date']))
+                    df.at[i,'diverUp'] = df.at[i,'diverUp'] + ',' + df.at[i-j,'date']
+    #把每天的bar值都跟之前bar120比较，看看顶背离情况
+    bar = barArray[i]
+    if bar > 0:
+        for x in range(1,65):
+            if i - x > 0:
+                barPrevious = barArray[i-1]
+                bar120Previous = bar120Array[i-x]
+                closePrevious = closeArray[i-x]
+                if bar120Previous > 0 and bar120Previous > bar and closePrevious < close and bar > barPrevious:
+                    df.at[i, 'diverUpTest'] = df.at[i, 'diverUpTest'] + ',' + df.at[i - x, 'date']
+    return  df
 
 
 #判断当天是否为最近5天最合适卖（以ema26为基准）
@@ -405,6 +525,8 @@ def getATRChannel(df):
 
     df['ATR'] = pd.DataFrame.ewm(df['TR'], span=14).mean() #用ema21平滑，长期趋势
     df['ema21'] = pd.DataFrame.ewm(df['close'], span=21).mean() #用ema21平滑，长期趋势
+    df['ema21Trend'] = np.where(df['ema21'] > df['ema21'].shift(1), 'up', 'down')
+
     df['ATR1'] = df['ema21'] + df['ATR']
     df['ATR2'] = df['ema21'] + df['ATR']*2
     df['ATR3'] = df['ema21'] + df['ATR']*3
@@ -412,6 +534,7 @@ def getATRChannel(df):
     df['ATR-2'] = df['ema21'] - df['ATR']*2
     df['ATR-3'] = df['ema21'] - df['ATR']*3
 
+    # 简单预测明天通道价格
     index = len(df)
     df.at[index - 1, 'ATR1'] = df.iloc[index - 2]['ATR1'] * 2 - df.iloc[index - 3]['ATR1']
     df.at[index - 1, 'ATR2'] = df.iloc[index - 2]['ATR2'] * 2 - df.iloc[index - 3]['ATR2']
@@ -695,7 +818,8 @@ def getDfKdj(kLineDf):
 
 
 def outPutXlsx(df,name='temp'):
-    path = '/Users/miketam/Downloads/'+ name + '.xlsx'
+    today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
+    path = '/Users/miketam/Downloads/'+ today + '/'+ name + '.xlsx'
     df.to_excel(path, float_format='%.5f',index=False)
 
 
@@ -745,6 +869,13 @@ def getDfMacd(df2):
     #标记bar柱零线下从向下转向上，主要用于手工识别背离
     df['bar021'] =  np.where((df['bar'].shift(-1) > df['bar']) & (df['bar'].shift(1) > df['bar']) & (df['bar'] < 0) , df['bar'], np.nan)
         #注意只要1条，2条，
+
+    #标记bar柱0线上，由向上转向下，主要用于识别顶部背离
+    df['bar120'] = np.where((df['bar'].shift(-1) < df['bar']) & (df['bar'].shift(1) < df['bar']) & (df['bar'] > 0) , df['bar'], np.nan)
+
+    #当股价下跌，bar值却增大，证明股价
+    # df['barReduce'] =
+
 
     return df2
 
@@ -852,3 +983,12 @@ def multiProcess():
     # for i in process_list:
     #     p.join()
     print("test finish")
+
+
+def mkdir(path):
+    folder = os.path.exists(path)
+
+    if not folder:  # 判断是否存在文件夹如果不存在则创建为文件夹
+        os.makedirs(path)  # makedirs 创建文件时如果路径不存在会创建这个路径
+
+
