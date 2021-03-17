@@ -59,6 +59,7 @@ def checkPolicy(stockCodeArray,stockName):
     print(tis2 - tis1)
 
 
+
     ##日数据处理#####
     tis1 = time.perf_counter()
 

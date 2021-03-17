@@ -99,7 +99,8 @@ def getScore(df, i, period):
     # # print(df.shape)
 
     return df
- 
+
+
 #取K线数据
 def getKline(dfArray,stockName):
     dfAppend: DataFrame = pd.DataFrame() #

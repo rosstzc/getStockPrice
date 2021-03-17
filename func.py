@@ -763,6 +763,8 @@ def getBarPosition(aSeries):
     if count <= 2:
         position = '1'
     else:
+
+
         if bigger == True and count <= 3:
             position = '1'
 

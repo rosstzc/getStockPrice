@@ -273,6 +273,7 @@ def getWeeklyData(kLineWeekArray):
 #     return weekly_df
 
 
+
 #K线数据二次加工
 def processKline(stockCodeArray, type, toFile = 1):
     Kline = getOnlyKline(stockCodeArray,toFile)
