@@ -248,18 +248,34 @@ def getKline(dfArray,stockName):
         df2 = dfAppend[(dfAppend['date'] == i)].copy()
         df3 = df2.loc[df2['diver'] != ' ']
         dfAppend2 = dfAppend2.append(df3)
-    name = '日数据：日bar底部背离'
+    name = '日数据：日bar底背离'
     today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
     name = name + '-' + str(len(dfArray)) + '-' + today
     outPutXlsx(dfAppend2, name)
 
-    # 日bar底部背离
+
+    # 日bar底背离（并且第二bar值是正数）
+    condition = (dfAppend['diver'] != ' ') & (dfAppend['bar'].shift() < 0) #把第二日bar值不为正的去掉
+    dfAppend.loc[condition, 'diver'] = ' '
+    dfAppend2: DataFrame = pd.DataFrame()  # 重置df
+    for i in dateArray:
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        df3 = df2.loc[df2['diver'] != ' ']
+        dfAppend2 = dfAppend2.append(df3)
+    name = '日数据：日bar底部背离（并且第二bar值是正数）'
+    today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
+    name = name + '-' + str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2, name)
+
+
+
+    # 日bar准备底背离
     dfAppend2: DataFrame = pd.DataFrame()  # 重置df
     for i in dateArray:
         df2 = dfAppend[(dfAppend['date'] == i)].copy()
         df3 = df2.loc[df2['diverTest'] != ' ']
         dfAppend2 = dfAppend2.append(df3)
-    name = '日数据：日bar准备底部背离'
+    name = '日数据：日bar底背离-准备'
     today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
     name = name + '-' + str(len(dfArray)) + '-' + today
     outPutXlsx(dfAppend2, name)
@@ -272,7 +288,7 @@ def getKline(dfArray,stockName):
         # df3 = df2.loc[df2['diverUp'].notnull()]
         df3 = df2.loc[df2['diverUp'] != ' ']
         dfAppend2 = dfAppend2.append(df3)
-    name = '日数据：日bar顶部背离'
+    name = '日数据：日bar顶背离'
     today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
     name = name + '-' + str(len(dfArray)) + '-' + today
     outPutXlsx(dfAppend2, name)
@@ -285,10 +301,13 @@ def getKline(dfArray,stockName):
         # df3 = df2.loc[df2['diverUp'].notnull()]
         df3 = df2.loc[df2['diverUpTest'] != ' ']
         dfAppend2 = dfAppend2.append(df3)
-    name = '日数据：日bar准备顶部背离'
+    name = '日数据：日bar顶背离-准备'
     today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
     name = name + '-' + str(len(dfArray)) + '-' + today
     outPutXlsx(dfAppend2, name)
+
+
+
 
     return dfAppend
 
@@ -391,7 +410,7 @@ def getWeekPriceDifEma26(dfArray, stockName):
         df2 = dfAppend[(dfAppend['date'] == i)].copy()
         df3 = df2.loc[df2['diver'] != ' ']
         dfAppend2 = dfAppend2.append(df3)
-    name = '周数据：周bar底部背离'
+    name = '周数据：周bar底背离'
     today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
     name = name + '-' + str(len(dfArray)) + '-' + today
     outPutXlsx(dfAppend2, name)
@@ -402,7 +421,7 @@ def getWeekPriceDifEma26(dfArray, stockName):
         df2 = dfAppend[(dfAppend['date'] == i)].copy()
         df3 = df2.loc[df2['diverTest'] != ' ']
         dfAppend2 = dfAppend2.append(df3)
-    name = '周数据：周bar准备底部背离'
+    name = '周数据：周bar底背离-准备'
     today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
     name = name + '-' + str(len(dfArray)) + '-' + today
     outPutXlsx(dfAppend2, name)
@@ -416,7 +435,7 @@ def getWeekPriceDifEma26(dfArray, stockName):
         # df3 = df2.loc[df2['diverUp'].notnull()]
         df3 = df2.loc[df2['diverUp'] != ' ']
         dfAppend2 = dfAppend2.append(df3)
-    name = '周数据：周bar顶部背离'
+    name = '周数据：周bar顶背离'
     today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
     name = name + '-' + str(len(dfArray)) + '-' + today
     outPutXlsx(dfAppend2, name)
@@ -428,7 +447,7 @@ def getWeekPriceDifEma26(dfArray, stockName):
         # df3 = df2.loc[df2['diverUp'].notnull()]
         df3 = df2.loc[df2['diverUp'] != ' ']
         dfAppend2 = dfAppend2.append(df3)
-    name = '周数据：周bar准备顶部背离'
+    name = '周数据：周bar顶背离-准备'
     today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
     name = name + '-' + str(len(dfArray)) + '-' + today
     outPutXlsx(dfAppend2, name)

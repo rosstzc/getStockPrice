@@ -48,7 +48,7 @@ def checkPolicy(stockCodeArray,stockName):
     dfWeekArray = getFileOnLocalWeek(stockCodeArray, stockName)  # 把周线数据单独处理和输出
 
     # 策略：单纯根据周股价偏离程度排序（周线比日线偏离更大），捕捉哪些短期反弹行情
-    result = getWeekPriceDifEma26(dfWeekArray, stockName)
+    # result = getWeekPriceDifEma26(dfWeekArray, stockName)
 
     # 策略：根据周bar值， 0线下bar转向上次数和偏离通道程度，捕捉哪些反弹的股票
 
@@ -231,7 +231,12 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
 
 
     #根据策略处理数据
+    tis1 = time.perf_counter()
     dfKline = processKline(stockCodeArray, type = 'all', toFile=toFile)
+    tis2 = time.perf_counter()
+    print("从API获取数据的时间，包括日线和周线：")
+    print(tis2 - tis1)
+
 
     dfday = dfKline[0] #取日线数据
 
@@ -329,28 +334,29 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
         barHLidList = df.loc[(df.barHL == 'H') | (df.barHL == 'L')].index.tolist() #bar所有HL点的的行的索引
 
 
-        #这个循环效率，日后可以优化
+        tis1 = time.perf_counter()
+
+        # 这个循环效率，日后可以优化
         for i in range(index):
-            code = df.at[0,'code']
+            code = df.at[0, 'code']
 
             # #估计bar值所在波形的位置
-            df = getBarPositionDf(barHLidList,df,i)  #里面的describe函数很慢
-            #计算得分
+            df = getBarPositionDf(barHLidList, df, i)  # 里面的describe函数很慢
+            # 计算得分
             # df = getScore(df,i,'d')
 
-            #当bar为负，计算在一周期内，又'-0'转'-1'的次数，方便后续全网做排序，选次数多的来买
+            # 当bar为负，计算在一周期内，又'-0'转'-1'的次数，方便后续全网做排序，选次数多的来买
             # temp = getBarChangeCount(df,i,barChangeCount)
             # df = temp[0]
             # barChangeCount = temp[1]
-
 
             # 计算通道（4个月95%线柱包含在通道内）
             temp = getEma26Channel(df, i, ema26DiffArray)
             df = temp[0]
             ema26DiffArray = temp[1]
 
-            #计算止损价格（上升时，也可以用作止盈）
-            temp = getLossStopPrice(df,i,lowDiffArray)
+            # 计算止损价格（上升时，也可以用作止盈）
+            temp = getLossStopPrice(df, i, lowDiffArray)
             df = temp[0]
             lowDiffArray = temp[1]
 
@@ -364,12 +370,11 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
             df = temp[0]
             highDifEma26Array = temp[1]
 
-
-            #判断bar底背离情况
+            # 判断bar底背离情况
             df = getDivergence(df, i, bar021Array, closeArray, barArray)
 
-            #判断bar顶背离情况
-            df = getDivergenceUp(df, i, bar120Array, closeArray,barArray)
+            # 判断bar顶背离情况
+            df = getDivergenceUp(df, i, bar120Array, closeArray, barArray)
 
             # #识别当前点的DEA、dif是向上或向下
             # # df = getMacdTrend(i,df,'deaHL','deaTrend')
@@ -422,43 +427,42 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
             #     else:
             #         df.at[i, 'difGTS'] = ''
 
-
-
             # 把周线数据写入日线列表
-                #找到当前日线对应的周线，把数据复制过去
-            dayYearWeek = getYearWeekFromDate(df.iat[i,0]) #找到某天对应到年份+周数
+            # 找到当前日线对应的周线，把数据复制过去
+            dayYearWeek = getYearWeekFromDate(df.iat[i, 0])  # 找到某天对应到年份+周数
             if dayYearWeek in week:
                 p = week.index(dayYearWeek)
                 # df.loc[i, columnNameList[0]:columnNameList[len(columnNameList) - 1]] = dfweek.iloc[p]
-                df.iloc[i, weekDataBegin:weekDataEnd] = dfweek.iloc[p]  #上行也可以，差别只是定位方式不一样
+                df.iloc[i, weekDataBegin:weekDataEnd] = dfweek.iloc[p]  # 上行也可以，差别只是定位方式不一样
 
-
-                #用日数据更新当天的周数据，比如ema，macd等
+                # 用日数据更新当天的周数据，比如ema，macd等
                 if p > 0:
                     # df.at[i,'ema12_W2'] = getEMA(12, dfweek.at[p-1,'ema12_W'], df.at[i,'close'])  #这个是按日向上，原来ema12_W是按周显示
                     # df.at[i,'ema12Trend_W2'] = np.where(df.at[i,'ema12_W2'] > dfweek.at[p-1,'ema12_W'],'up','down')
                     # df.at[i,'ema26_W2'] = getEMA(26, dfweek.at[p-1,'ema26_W'], df.at[i,'close'])
-                    #还可以补充，包括脉冲系统，等需要这些数据回测时再计算
-                    previousEMA12 = dfweek.at[p-1,'ema12_W']
-                    previousEMA26 = dfweek.at[p-1,'ema26_W']
-                    previousDEA = dfweek.at[p-1,'dea_W']
-                    closePrice = df.at[i,'close']
-                    df.at[i,'bar_W2'] = getMacd(previousEMA12,previousEMA26,previousDEA,closePrice)[2] #每天更新周bar值
-                    #每天更新周bar值的转向（若当天的动态周bar值相对上周是向上，就标记为1，还有前一周也符合条件）
+                    # 还可以补充，包括脉冲系统，等需要这些数据回测时再计算
+                    previousEMA12 = dfweek.at[p - 1, 'ema12_W']
+                    previousEMA26 = dfweek.at[p - 1, 'ema26_W']
+                    previousDEA = dfweek.at[p - 1, 'dea_W']
+                    closePrice = df.at[i, 'close']
+                    df.at[i, 'bar_W2'] = getMacd(previousEMA12, previousEMA26, previousDEA, closePrice)[2]  # 每天更新周bar值
+                    # 每天更新周bar值的转向（若当天的动态周bar值相对上周是向上，就标记为1，还有前一周也符合条件）
                     if p > 1:
-                        df.at[i,'bar021_W2'] = np.where(
-                            (dfweek.at[p-2,'bar_W'] > dfweek.at[p-1,'bar_W']) & (df.at[i,'bar_W2'] > dfweek.at[p-1,'bar_W']) & (dfweek.at[p-1,'bar_W'] < 0), 1,np.nan) #0线下，由下转上
-                        df.at[i,'bar021_W22'] = np.where(
-                            (dfweek.at[p-2,'bar_W'] > dfweek.at[p-1,'bar_W']) & (df.at[i,'bar_W2'] > dfweek.at[p-1,'bar_W']) & (dfweek.at[p-1,'bar_W'] > 0), 1,np.nan) #0线上，由下转上
- #0线下，由向下转向上
-                            # (dfweek.at[p-2,'bar_W'] > dfweek.at[p-1,'bar_W']) & (df.at[i,'bar_W2'] > dfweek.at[p-1,'bar_W']) & (dfweek.at[p-1,'bar_W']> 0), 1,  # 0线上，由向下转向上
+                        df.at[i, 'bar021_W2'] = np.where(
+                            (dfweek.at[p - 2, 'bar_W'] > dfweek.at[p - 1, 'bar_W']) & (
+                                        df.at[i, 'bar_W2'] > dfweek.at[p - 1, 'bar_W']) & (
+                                        dfweek.at[p - 1, 'bar_W'] < 0), 1, np.nan)  # 0线下，由下转上
+                        df.at[i, 'bar021_W22'] = np.where(
+                            (dfweek.at[p - 2, 'bar_W'] > dfweek.at[p - 1, 'bar_W']) & (
+                                        df.at[i, 'bar_W2'] > dfweek.at[p - 1, 'bar_W']) & (
+                                        dfweek.at[p - 1, 'bar_W'] > 0), 1, np.nan)  # 0线上，由下转上
+                        # 0线下，由向下转向上
+                        # (dfweek.at[p-2,'bar_W'] > dfweek.at[p-1,'bar_W']) & (df.at[i,'bar_W2'] > dfweek.at[p-1,'bar_W']) & (dfweek.at[p-1,'bar_W']> 0), 1,  # 0线上，由向下转向上
 
-                        #每天更新周bar从向上转向下
+                        # 每天更新周bar从向上转向下
                         df.at[i, 'bar120_W2'] = np.where(
-                            (dfweek.at[p - 2, 'bar_W'] < dfweek.at[p - 1, 'bar_W']) & (df.at[i, 'bar_W2'] < dfweek.at[p - 1, 'bar_W']), 1,np.nan) # 由向上转向下（0上或0下）
-
-
-
+                            (dfweek.at[p - 2, 'bar_W'] < dfweek.at[p - 1, 'bar_W']) & (
+                                        df.at[i, 'bar_W2'] < dfweek.at[p - 1, 'bar_W']), 1, np.nan)  # 由向上转向下（0上或0下）
 
                     #
                     # df['bar021'] = np.where(
@@ -475,20 +479,16 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
             #     temp = temp + m
             # df.at[i,'barKey_H'] = temp #
 
-
-            #买策略：利用macd到dea和bar的高点变化来给出买点
+            # 买策略：利用macd到dea和bar的高点变化来给出买点
             # df = buyPolicyMacdTrend(i, df)
 
-
-
-            #买入策略：利用ma双向上来判断
+            # 买入策略：利用ma双向上来判断
             # buy = buyPolicy1(df, buyState, buycount, buyIndex, buyPrice, i)
             # df = buy[0]
             # buyState = buy[1]
             # buycount = buy[2]
             # buyIndex = buy[3]
             # buyPrice = buy[4]
-
 
             # #卖出策略1
             # sell = sellPolicy1(df, buyState, buyPrice, buyIndex, lossPrecent, winPrecent, losscount, wincount, lossReduce, winReduce,i)
@@ -502,9 +502,14 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
             # wincount = sell[7]
             # lossReduce = sell[8]
             # winReduce = sell[9]
-        # print(df.tail(10))
-        # print('33')
-        # exit()
+
+        tis2 = time.perf_counter()
+        print("循环一个股票每一行所需时间：")
+        print(tis2 - tis1)
+
+
+
+
 
         df = getPulseSystem(df) #
 

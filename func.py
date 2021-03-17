@@ -146,8 +146,8 @@ def getChart(df, filePath,headOrTail,days,type=''):
     DiverTempList = df['diverTemp'].tolist()
     DiverTempList[0] = df['bar'].tolist()[0]  # 避免空值，导致不能画图
     #标记准备底背离
-    df.loc[df['diverTest'] != ' ', 'diverTemp'] = df['bar'] * 1.2
-    DiverTestList = df['diverTemp'].tolist()
+    df.loc[df['diverTest'] != ' ', 'diverTemp2'] = df['bar'] * 1.2
+    DiverTestList = df['diverTemp2'].tolist()
     DiverTestList[0] = df['bar'].tolist()[0]  # 避免空值，导致不能画图
 
     # 标记顶背离
@@ -155,8 +155,8 @@ def getChart(df, filePath,headOrTail,days,type=''):
     DiverUpTempList = df['diverUpTemp'].tolist()
     DiverUpTempList[0] = df['bar'].tolist()[0]  # 避免空值，导致不能画图
     # 标准备记顶背离
-    df.loc[df['diverUpTest'] != ' ', 'diverUpTemp'] = df['bar'] * 1.2
-    DiverUpTestList = df['diverUpTemp'].tolist()
+    df.loc[df['diverUpTest'] != ' ', 'diverUpTemp2'] = df['bar'] * 1.2
+    DiverUpTestList = df['diverUpTemp2'].tolist()
     DiverUpTestList[0] = df['bar'].tolist()[0]  # 避免空值，导致不能画图
 
 
@@ -393,7 +393,7 @@ def getDivergenceUp(df, i, bar120Array, closeArray, barArray):
     bar120 = bar120Array[i]
     close = closeArray[i]
     if bar120 > 0: #这个从下转向上的点存在
-        for j in range(1,65):  #向上循环7个月
+        for j in range(1,150):  #向上循环7个月
             if i - j > 0:
                 bar120Previous = bar120Array[i-j]
                 closePrevious = closeArray[i-j]
@@ -403,12 +403,13 @@ def getDivergenceUp(df, i, bar120Array, closeArray, barArray):
     #把每天的bar值都跟之前bar120比较，看看顶背离情况
     bar = barArray[i]
     if bar > 0:
-        for x in range(1,65):
+        for x in range(1,150):
             if i - x > 0:
                 barPrevious = barArray[i-1]
                 bar120Previous = bar120Array[i-x]
                 closePrevious = closeArray[i-x]
                 if bar120Previous > 0 and bar120Previous > bar and closePrevious < close and bar > barPrevious:
+                # if bar120Previous > 0 and bar120Previous > bar and closePrevious < close : #没有要求bar柱是上升
                     df.at[i, 'diverUpTest'] = df.at[i, 'diverUpTest'] + ',' + df.at[i - x, 'date']
     return  df
 
