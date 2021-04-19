@@ -1,5 +1,6 @@
 import baostock as bs
 import pandas as pd
+# import modin.pandas as pd
 import openpyxl
 import numpy as np
 from pandas import DataFrame
@@ -48,7 +49,7 @@ def checkPolicy(stockCodeArray,stockName):
     dfWeekArray = getFileOnLocalWeek(stockCodeArray, stockName)  # 把周线数据单独处理和输出
 
     # 策略：单纯根据周股价偏离程度排序（周线比日线偏离更大），捕捉哪些短期反弹行情
-    # result = getWeekPriceDifEma26(dfWeekArray, stockName)
+    result = getWeekPriceDifEma26(dfWeekArray, stockName)
 
     # 策略：根据周bar值， 0线下bar转向上次数和偏离通道程度，捕捉哪些反弹的股票
 
@@ -66,12 +67,22 @@ def checkPolicy(stockCodeArray,stockName):
     # #判断本地是否有processFor处理后的文件，如果有直接读取； 否则调用processFor来生成文件导出到本地
     dfArray = getFileOnLocal(stockCodeArray, stockName)
 
+    #测试选股策略
+    # prepareData(dfArray)
+    # selectStock()
+    # print('测试选股策略')
+    # exit()
+
+
     # #取股票最近N日k线数据，方便查看
     result = getKline(dfArray, stockName)
+    # result = checkTimingPolicy(dfArray, stockName)
 
     tis2 = time.perf_counter()
     print("日数据时间：")
     print( tis2 - tis1)
+
+
 
 
     # 通过止损点来设计交易策略
@@ -258,6 +269,8 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
 
     #处理每一个股票的df
     for x in range(len(dfDayArray)):
+        tisb = time.perf_counter()
+
 
         df = dfDayArray[x]
         dfweek = dfweekArray[x]
@@ -322,6 +335,7 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
         barChangeCount = 0
         ema26DiffArray = np.array([])
         lowDiffArray = np.array([])
+        highDiffArray = np.array([])
         lowDifEma26Array = np.array([])
         highDifEma26Array = np.array([])
         barArray = df['bar'].values
@@ -329,9 +343,8 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
         bar120Array = df['bar120'].values  #顶部由向上转向下
         closeArray = df['close'].values
 
-
-
         index = len(df) - 1 #得到索引,减1是因为之前增加一个不规则的行数据
+        print(df.at[0,'code'])
         barHLidList = df.loc[(df.barHL == 'H') | (df.barHL == 'L')].index.tolist() #bar所有HL点的的行的索引
 
 
@@ -347,9 +360,9 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
             # df = getScore(df,i,'d')
 
             # 当bar为负，计算在一周期内，又'-0'转'-1'的次数，方便后续全网做排序，选次数多的来买
-            # temp = getBarChangeCount(df,i,barChangeCount)
-            # df = temp[0]
-            # barChangeCount = temp[1]
+            temp = getBarChangeCount(df,i,barChangeCount)
+            df = temp[0]
+            barChangeCount = temp[1]
 
             # 计算通道（4个月95%线柱包含在通道内）
             temp = getEma26Channel(df, i, ema26DiffArray)
@@ -360,6 +373,14 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
             temp = getLossStopPrice(df, i, lowDiffArray)
             df = temp[0]
             lowDiffArray = temp[1]
+
+
+            # 计算做空止损价格（也就是做多时的盈利点， 相当于把k线图倒过来计算止损）
+            temp = getWinStopPrice(df, i, highDiffArray)
+            df = temp[0]
+            highDiffArray = temp[1]
+
+
 
             ##判断当天是否为最近5天最合适买点（以ema26为基准）
             temp = getBuyPointBaseEma26(df, i, lowDifEma26Array)
@@ -510,12 +531,15 @@ def processFor(stockCodeArray, toFile, stockNameArray, filePath):
 
 
 
-
-
         df = getPulseSystem(df) #
 
         df = getATRChannel(df) #生成ATR通道
 
+
+
+        tise = time.perf_counter()
+        print("处理一个股票的df+循环每一行所需时间：")
+        print(tise - tisb)
 
         #做一下ATR通道预测
         # df = df[['date','code','ATR1','ATR2','ATR3','ATR-1','ATR-2','ATR-3',]]

@@ -8,6 +8,9 @@ import mplfinance as mpf
 import pandas_datareader as pdr
 
 from func import *
+from timingFunction import *
+from selectFunction import *
+from condition import *
 
 
 
@@ -97,13 +100,203 @@ def getScore(df, i, period):
     # # df["加分"] = np.where((df['bar'] > 0) & (df['po'] == '') , (df['加分']+1) , df["加分"])  # 两均线比较
     # df["加分描述"] = np.where((df['bar'] > 0) , df['加分描述']+'', '')  # 两均线比较
     # # print(df.shape)
+    return df
+
+
+
+#
+# def lossStopPolicy(df):
+#
+#     #
+
+
+
+#按日计算周周bar转向上，先分析0上转向上, 其他参数：0线下转线上，ema12>ema26, 转向上第二日收盘价/开盘价， 第5日卖出，
+def weekBar021Policy(df):
+    df['signal'] = df['bar021_W22']
+    df['sellPrice'] = df['close']
+    # 买入后第5天卖出
+    days = 0
+    pos = 0
+    lossStopPrice = 0
+    buyDate = ''
+    for i in range(len(df)):
+
+        #止损逻辑
+        # df, pos, lossStopPrice, buyDate = lossStopSell(df,i,pos,lossStopPrice,buyDate)
+
+
+        df, days = daySell(df, i, days, 5)
+
+    #计算持仓
+    df = position(df)
+    df = equity_curve(df)
+    return df
+
+
+#周期内背离回测
+def divergenceOnePeriod(df):
+
+    #找买入信号：发生背离后第二日买入
+    condition = df['diver'].shift(1) != ' '
+    condition2 = df['']
+    df.loc[condition, 'signal'] = 1
+    df.at[0,'signal'] = 0
+    df['sellPrice'] = df['close'] #默认用收盘价作为卖出价
+
+    #卖出信号：买入后第5天收盘价卖出，如果这天刚好又是买入信号，就再推迟5天
+    pos = 0
+    days = 0 #计算天数
+    buyPrice = 0
+    lossStopPrice = 0
+    buyDate = ''
+
+    for i in range(len(df)):
+        #止损逻辑
+        # df, pos, lossStopPrice, buyDate = lossStopSell(df,i,pos,lossStopPrice,buyDate)
+
+
+        #止盈逻辑
+        df,pos,buyPrice,buyDate = winStopSell(df, i, pos, buyPrice, buyDate)
+
+
+        #买入后第5天卖出
+        df,days = daySell(df, i, days, 5)
+
+
+
+    #
+    #
+    # for i in range(len(df)):
+    #     if df.at[i, 'signal'] == 1:
+    #         hold = 1
+    #         buyPrice = df.at[i,'close']
+    #         # lossStopPrice = df.at[i+1,'lossStopPrice2']
+    #
+    #     #止损卖出(未到5天，止损触发卖出，所以代码放在前面)
+    #     # df = lossStopSell(df, i, buyPrice)
+    #
+    #     # 买入后5天数卖出,如果5天内又出现背离，就重新计算5天
+    #     df,count,signal = daySell(df,i,count,hold,5)
+
+
+
+
+
+
+    #计算持仓
+    df = position(df)
+
+    df = equity_curve(df)
+    return df
+
+
+#均线金叉策略
+def testMaPolicy(df, ma_short=5, ma_long=20):
+    """
+    均线策略：
+    当短期均线由下向上穿过长期均线的时候，第二天以开盘价全仓买入并在之后一直持有股票。
+    当短期均线由上向下穿过长期均线的时候，第二天以开盘价卖出全部股票并在之后一直空仓，直到下一次买入。
+
+    :param df:
+    :param ma_short: 短期均线
+    :param ma_long: 长期均线
+    :return:
+    """
+
+    # ===计算均线
+    df['ma_short'] = df['close'].rolling(ma_short, min_periods=1).mean()
+    df['ma_long'] = df['close'].rolling(ma_long, min_periods=1).mean()
+
+    # ===找出买入信号
+    # 当天的短期均线大于等于长期均线
+    condition1 = (df['ma_short'] >= df['ma_long'])
+    # 上个交易日的短期均线小于长期均线
+    condition2 = (df['ma_short'].shift(1) < df['ma_long'].shift(1))
+    # 将买入信号当天的signal设置为1
+    df.loc[condition1 & condition2, 'signal'] = 1
+
+    # ===找出卖出信号
+    # 当天的短期均线小于等于长期均线
+    condition1 = (df['ma_short'] <= df['ma_long'])
+    # 上个交易日的短期均线大于长期均线
+    condition2 = (df['ma_short'].shift(1) > df['ma_long'].shift(1))
+    # 将买入信号当天的signal设置为0
+    df.loc[condition1 & condition2, 'signal'] = 0
+
+    # 将无关的变量删除
+    # df.drop(['ma_short', 'ma_long'], axis=1, inplace=True)
+
+
+    #计算持仓
+    df = position(df)
+    df = equity_curve(df)
 
     return df
+
+
+#专门处理择时策略
+def checkTimingPolicy(dfArray,stockName):
+    dfTradeAnalyse = pd.DataFrame(columns=['code', '交易次数','胜率', '累计盈利率','年化收益','股价年化增长','投资时长','持仓时间','最大亏损','亏损日期', '最大盈利','盈利日期'])
+    dfAppend: DataFrame = pd.DataFrame() #
+    dfRecordAppend: DataFrame = pd.DataFrame() #
+    x = 0
+    for df in dfArray:
+        if len(stockName) > 1:
+            # df['codeOnly'] = df['code']
+            df['code'] = stockName[x]
+        x = x + 1
+        df.drop(index=len(df) - 1, inplace=True) #删除最后一行
+
+        #测试一下择时的周期内底背离策略
+        df = divergenceOnePeriod(df) #执行策略交易回测
+        #测试0上的周bar从向上转向上
+        df = weekBar021Policy(df)
+
+
+        #策略评估
+        temp = timingEvaluate(df,dfTradeAnalyse) #评估策略效果
+        df = temp[0]
+        dfTradeAnalyse = temp[1]
+        dfRecord = df.copy()
+        df = df[['code','date','open','high','low', 'close','增幅','bar','bar021', 'signal','pos' ,'hold_num' ,'stock_value','cash','equity','手续费','印花税','b/s','w/l','w/l2','holdingTime']]
+        # df = df[['code','date','open','high','low', 'close','增幅','bar','bar021','diver', 'signal','pos' ,'hold_num' ,'stock_value','actual_pos','cash','equity','手续费','印花税','b/s']]
+        dfAppend = dfAppend.append(df)
+        dfRecordAppend = dfRecordAppend.append(dfRecord)
+        print(df)
+
+
+    dfTradeAnalyse = dfTradeAnalyse.sort_values(by=['年化收益'],ascending=False)
+    today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
+    name = '择时-股票统计结果'
+    name = name+ '-' +str(len(dfArray)) + '-' + today
+    outPutXlsx(dfTradeAnalyse,name)
+    print(dfTradeAnalyse)
+    print(dfTradeAnalyse.describe())
+    dfDesc = pd.DataFrame(dfTradeAnalyse.describe())
+    name = '择时-股票统计结果Describe'
+    name = name+ '-' +str(len(dfArray)) + '-' + today
+    outPutXlsx(dfDesc,name)
+
+
+
+    name = '择时-股票交易记录'
+    name = name+ '-' +str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend,name)
+
+    name = '择时-股票交易记录-全表'
+    name = name+ '-' +str(len(dfArray)) + '-' + today
+    outPutXlsx(dfRecordAppend, name)
+
+    return
+
+
 
 
 #取K线数据
 def getKline(dfArray,stockName):
     dfAppend: DataFrame = pd.DataFrame() #
+    dfAppendTemp: DataFrame = pd.DataFrame() #
     #把所有df合并
     x = 0
     for df in dfArray:
@@ -115,30 +308,49 @@ def getKline(dfArray,stockName):
         # path =  '/Users/miketam/Downloads/chartTest/day/'
         # getChartTest(df.copy(),path,'day')
 
-        #从前往后画图，方便自己做看图
+        #测试一下择时的ma金叉死叉策略
+        # df = testMaPolicy(df)
+        # df = df[['date','open','high','low', 'close','增幅','ma_short','ma_long', 'signal','pos' ,'hold_num' ,'stock_value','actual_pos','cash','equity','手续费','印花税']]
+        # print(df)
+        # exit()
+
+        #测试一下择时的周期内底背离策略
+        # dfTrade = divergenceOnePeriod(df)
+        # dfTrade = dfTrade[['code','date','open','high','low', 'close','增幅','bar','bar021', 'signal','pos' ,'hold_num' ,'stock_value','cash','equity','手续费','印花税','b/s','w/l','holdingTime']]
+        # # df = df[['code','date','open','high','low', 'close','增幅','bar','bar021','diver', 'signal','pos' ,'hold_num' ,'stock_value','actual_pos','cash','equity','手续费','印花税','b/s']]
+        # print(dfTrade)
+        # outPutXlsx(dfTrade, '择时策略-周期内底背离')
+        # print('here')
+        # exit()
+
+
 
         #画图
         today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
         path =  '/Users/miketam/Downloads/'+ today + '/chart/day/'
+        tis1 = time.perf_counter()
         getChart(df.copy(), path, 'tail', 150, 'day')
+        tis2 = time.perf_counter()
+        print("给一个股票画图所需时间：")
+        print(tis2 - tis1)
 
         # df = df[[ 'date','code','open','high','low','5low','5high','close', '增幅','volume', 'bar','bar021', 'bTrend', 'po', 'barKey', 'ema12Trend','ema26Trend','脉冲系统','force2','force12','barKeyCh','ema12','ema26','h/ema26%','c/ema26%','l/ema26%','upCFactor', 'upC','downC','h/Channel','c/Channel','l/Channel','lossStop','lossStop2', 'ema12Trend_W','ema26Trend_W']]
-        df = df[[ 'date','date_W','code','open','high','low','5low','5high','close', '增幅','volume','diver','diverTest','diverUp', 'diverUpTest','bar','bar021','bar021_W2', 'bTrend', 'po', 'barKey', 'ema12Trend','ema21Trend','ema26Trend','脉冲系统','force2','force2Max','ema12','ema26','upCFactor', 'upC','downC','lossStop','lossStop2', 'ema12Trend_W','ema26Trend_W','ema21', 'ema21_W', 'ATR1','ATR2','ATR3','ATR-1','ATR-2','ATR-3','bar021_W22','bar120_W2']]
+        df = df[[ 'date','date_W','code','open','high','low','5low','5high','close', '增幅','volume','diver','diverTest','diverUp', 'diverUpTest','bar','bar021','bar021_W2', 'bTrend', 'po', 'barKey', 'ema12Trend','ema21Trend','ema26Trend','脉冲系统','force2','force2Max','ema12','ema26','upCFactor', 'upC','downC','lossStop','lossStop2','lStop', 'ema12Trend_W','ema26Trend_W','ema21', 'ema21_W', 'ATR1','ATR2','ATR3','ATR-1','ATR-2','ATR-3','bar021_W22','bar120_W2']]
         df = df.iloc[::-1] #倒序，让最近排在前面
 
         dfAppend = dfAppend.append(df.head(200))
+        dfAppendTemp = dfAppendTemp.append(df.head(700))
         # dfAppend = dfAppend.append(df)
 
+    # 从"平安银行"取交易日期列表
+    dateArray = dfArray[0]['date'].values.tolist()
+    dateArray.reverse()
 
     name = '日数据：股票最近K线数据'
     today = time.strftime("%Y-%m-%d",time.localtime(time.time()))
     name = name+ '-' +str(len(dfArray)) + '-' + today
     outPutXlsx(dfAppend, name)
 
-
-    # 从"平安银行"取交易日期列表
-    dateArray = dfArray[0]['date'].values.tolist()
-    dateArray.reverse()
 
     #策略：计算日线在0线下转向上的点，然后再人工找背离
     dfAppend2: DataFrame = pd.DataFrame() #重置df
@@ -308,6 +520,18 @@ def getKline(dfArray,stockName):
     outPutXlsx(dfAppend2, name)
 
 
+    #日K线穿过止损lossStop1和2
+    dfAppend2: DataFrame = pd.DataFrame()  # 重置df
+    for i in dateArray:
+        # df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        df2 = dfAppendTemp[(dfAppendTemp['date'] == i)].copy()
+        df3 = df2.loc[df2['lStop'] > 0]
+        dfAppend2 = dfAppend2.append(df3)
+    name = '日数据：日K线穿过止损lossStop1和2'
+    today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
+    name = name + '-' + str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2, name)
+
 
 
     return dfAppend
@@ -339,13 +563,17 @@ def getWeekPriceDifEma26(dfArray, stockName):
         condition2 = (df['增幅'] < 0) & (df['增幅'].shift(1) > 0)
 
 
+
         #画图
         today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
         path =  '/Users/miketam/Downloads/'+ today +'/chart/week/'
         getChart(df.copy(), path, 'tail', 130, 'week')
+        # print(df)
+        # # outPutXlsx(df, '价格下跌2')
+        # exit()
 
         # df = df[['code', 'date','open','high','low', 'close', '5low','增幅', 'bar', 'bTrend', 'barKey','bar021','bNo', 'ema12Trend','ema26Trend','ema100Trend','脉冲系统','force2','force12','barKeyCh','ema12','ema26','ema100','upCFactor', 'upC','downC','c/ema26','h/Channel','c/Channel','l/Channel','lossStop','lossStop2']]
-        df = df[['code', 'date','open','high','low', 'close', '5low','增幅', 'bar', 'diver','diverTest','diverUp','diverUpTest','bTrend', 'barKey','bar021', 'ema12Trend','ema26Trend','脉冲系统','force2','ema12','ema26','upCFactor', 'upC','downC','lossStop','lossStop2','ATR1','ATR2','ATR3','ATR-1','ATR-2','ATR-3']]
+        df = df[['code', 'date','open','high','low', 'close', '5low','增幅', 'bar', 'diver','diverTest','diverUp','diverUpTest','bTrend', 'barKey','bar021', 'ema12Trend','ema26Trend','脉冲系统','force2','ema12','ema26','upCFactor', 'upC','downC','lossStop','lossStop2','lStop','ATR1','ATR2','ATR3','ATR-1','ATR-2','ATR-3']]
         df['key'] = np.where(condition1 & condition2, '0', '')
         dfAppend = dfAppend.append(df)
 
@@ -452,6 +680,19 @@ def getWeekPriceDifEma26(dfArray, stockName):
     today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
     name = name + '-' + str(len(dfArray)) + '-' + today
     outPutXlsx(dfAppend2, name)
+
+    # 周K线穿过止损lossStop1和2
+    dfAppend2: DataFrame = pd.DataFrame()  # 重置df
+    for i in dateArray:
+        # df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        df2 = dfAppend[(dfAppend['date'] == i)].copy()
+        df3 = df2.loc[df2['lStop'] > 0]
+        dfAppend2 = dfAppend2.append(df3)
+    name = '周数据：周K线穿过止损lossStop1和2'
+    today = time.strftime("%Y-%m-%d", time.localtime(time.time()))
+    name = name + '-' + str(len(dfArray)) + '-' + today
+    outPutXlsx(dfAppend2, name)
+
 
     return
 

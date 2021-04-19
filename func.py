@@ -97,11 +97,30 @@ def getChartTest(df, filePath, type=''):
 
     return
 
+
+#输出止损数字并画到图上
+def printLossStop(df):
+    # 取得今天和明天止损价格
+    todayLossStop1 = df.iloc[-2]['lossStop']
+    todayLossStop2 = df.iloc[-2]['lossStop2']
+    tomorrowLossStop1 = df.iloc[-1]['lossStop']
+    tomorrowLossStop2 = df.iloc[-1]['lossStop2']
+    # print(tomorrowLossStop2)
+    # print('测试')
+    # print(df)
+    # exit()
+    text = ' T l1&l2: [' + str(round(todayLossStop1, 2)) + ', ' + str(round(todayLossStop2, 2)) + ']; T+1: [' + str(
+        round(tomorrowLossStop1, 2)) + ', ' + str(round(tomorrowLossStop2, 2)) + ']'
+
+    return text
+
 #画图
 def getChart(df, filePath,headOrTail,days,type=''):
     # 画图
     code = df.iat[1,1]#股票代码
-    # df.reset_index(drop=True, inplace=True)
+    text = printLossStop(df)
+
+
     df.drop(index=len(df) - 1, inplace=True)
     if headOrTail == 'tail': #从尾部取指定数量的行
         df = df.tail(days)
@@ -223,9 +242,13 @@ def getChart(df, filePath,headOrTail,days,type=''):
         mpf.make_addplot(df['buyLabel'].tolist(), scatter=True, markersize=40, marker='.', color='blue'),
 
         #止损点
-        mpf.make_addplot(df['lossStop2'].tolist(), scatter=True, markersize=40, marker='_', color='r'),
-        mpf.make_addplot(lossStop2UpList, scatter=True, markersize=40, marker='_', color='b'), #周线向上用蓝色
+        mpf.make_addplot(df['lossStop2'].tolist(), scatter=True, markersize=60, marker='_', color='r'),
+        mpf.make_addplot(df['lossStop'].tolist(), scatter=True, markersize=60, marker='_', color='y'),
+        mpf.make_addplot(lossStop2UpList, scatter=True, markersize=60, marker='_', color='b'), #周线向上用蓝色
 
+        #做空时止损点（做多时盈利点）
+        mpf.make_addplot(df['winStop'].tolist(), scatter=True, markersize=60, marker='_', color='gray'),
+        mpf.make_addplot(df['winStop2'].tolist(), scatter=True, markersize=60, marker='_', color='g'),
 
         #macd
         mpf.make_addplot(df['barP'], type='bar', width=0.7, panel=1, color='black'), #正数柱子
@@ -255,7 +278,7 @@ def getChart(df, filePath,headOrTail,days,type=''):
         mpf.make_addplot(high5List, scatter=True, markersize=40, marker='v', color='gray'),  # 正向偏离最大
 
         # 按日来标记周bar转向上日子，0线下在最低级标，0向上在最高价标
-        mpf.make_addplot(bar021_W2List, scatter=True, markersize=100, marker='.', color='r'),
+        mpf.make_addplot(bar021_W2List, scatter=True, markersize=100, marker='.', color='r'), #0下，转向上
         mpf.make_addplot(bar021_W22List, scatter=True, markersize=150, marker='.', color='orange'),  #0上，由向下转向上
         mpf.make_addplot(bar120_W2List, scatter=True, markersize=100, marker='.', color='y'), #由向上转向下
 
@@ -266,8 +289,13 @@ def getChart(df, filePath,headOrTail,days,type=''):
         mpf.make_addplot(df['buyLabel'].tolist(), scatter=True, markersize=40, marker='.', color='gray'),
 
         # 止损点
-        mpf.make_addplot(df['lossStop2'].tolist(), scatter=True, markersize=40, marker='_', color='r'),
-        mpf.make_addplot(lossStop2UpList, scatter=True, markersize=40, marker='_', color='b'),  # 周线向上用蓝色
+        mpf.make_addplot(df['lossStop2'].tolist(), scatter=True, markersize=60, marker='_', color='r'),
+        mpf.make_addplot(df['lossStop'].tolist(), scatter=True, markersize=60, marker='_', color='y'),
+        mpf.make_addplot(lossStop2UpList, scatter=True, markersize=60, marker='_', color='b'),  # 周线向上用蓝色
+
+        # 做空时止损点（做多时盈利点）
+        # mpf.make_addplot(df['winStop'].tolist(), scatter=True, markersize=60, marker='_', color='gray'),
+        # mpf.make_addplot(df['winStop2'].tolist(), scatter=True, markersize=60, marker='_', color='g'),
 
         # macd
         mpf.make_addplot(df['barP'], type='bar', width=0.7, panel=1, color='black'),  # 正数柱子
@@ -309,8 +337,10 @@ def getChart(df, filePath,headOrTail,days,type=''):
                                   y_on_right=True,
                                   marketcolors=my_color)
 
+
+
     mpf.plot(df,
-             title= type,
+             title= type + text,
              type='candle',
              style=my_style,
              volume=False, #交易量
@@ -324,7 +354,7 @@ def getChart(df, filePath,headOrTail,days,type=''):
 
     #画atr多重通道
     mpf.plot(df,
-             title=type,
+             title=type + text,
              type='candle',
              style=my_style,
              volume=False, #交易量
@@ -362,16 +392,25 @@ def getDivergence(df, i, bar021Array, closeArray, barArray):
         df['diverTest'] = ' '  #初始化
     bar021 = bar021Array[i]
     close = closeArray[i]
+
+
     if bar021 < 0: #这个从下转向上的点存在
         for j in range(1,150):  #向上循环7个月
             if i - j > 0:
+                # 周期内背离：判断是否为周期内
+                if df.at[i - j, 'bar'] > 0:
+                    break
                 bar021Previous = bar021Array[i-j]
                 closePrevious = closeArray[i-j]
                 if bar021Previous < 0 and bar021Previous < bar021 and closePrevious > close: #找到股价比当前高，但bar柱比当前长日期
                     # print('这日期有背离：' + str(df.at[i,'date']) + '，之前日期点是：' + str(df.at[i-j,'date']))
                     df.at[i,'diver'] = df.at[i,'diver'] + ',' + df.at[i-j,'date']
 
-    #把每天的bar值都跟之前bar021比较，看看底背离情况
+    #跨周期背离
+
+
+
+    #把每天的bar值都跟之前bar021比较，看看底背离情况  /
     bar = barArray[i]
     if bar < 0:
         for x in range(1,150):
@@ -491,6 +530,50 @@ def getLossStopPrice(df,i,lowDiffArray):
     return [df, lowDiffArray]
 
 
+#计算做空时止损（就是做多时的盈利点），下降取30天回溯期，差值系数为2；上升取40天回溯期，差值系数为3
+def getWinStopPrice(df,i,highDiffArray):
+    #以当天ema12为基准确定是上升还是下降，然后执行不同逻辑。
+
+    #先把最低价放入数组，方便后面使用
+    if len(highDiffArray) == 0:
+        df['highDiff'] = df['high'] - df['high'].shift(1) #计算差值
+        highDiffArray = df['highDiff'].values
+        del df['highDiff']
+
+
+    if i > 0:
+        # 确定一下系数
+        if df.at[i,'ema12'] > df.at[i-1,'ema12']:   #ema12向上
+            days = 40
+            factor = 3 #差值系数， 做空时
+        else:
+            days = 30
+            factor = 2
+        #计算止损
+        if i > days:
+            highPriceTemp = highDiffArray[i-days:i]
+        else:
+            highPriceTemp = highDiffArray[0:i]
+        y = 0
+        sum = 0
+        for x in highPriceTemp:
+            if x < 0:
+               sum = sum +abs(x)
+               y = y + 1
+        if y > 0:
+            avg = sum/y
+            df.at[i+1,'code'] = df.at[i,'code']
+            # df.at[i+1,'date'] = df.at[i,'date']
+            df.at[i+1,'winStop'] = df.at[i,'high'] + avg*factor
+            df.at[i + 1, 'winStop2'] = min(df.at[i + 1, 'winStop'], df.at[i, 'winStop'],df.at[i - 1, 'winStop']) #防止止损点下拉，设定取3天内最高止损点
+            # test = df.at[i,'low']
+            # test2 = df.at[i+1,'lossStop']
+        # if i == 100:
+        #     outPutXlsx(df)
+        #     fd = 33
+    return [df, highDiffArray]
+
+
 
 # 当bar为负，计算在一周期内，由'-0'转'-1'的次数，方便后续全网做排序，选次数多的来买
 def getBarChangeCount(df,i,barChangeCount):
@@ -547,6 +630,12 @@ def getATRChannel(df):
     # del df['TR']
     # del df['ema21']
     # del df['ATR']
+
+    #标记一下股价是否穿过止损
+    condition1 = (df['lossStop'] > df['low']) & (df['lossStop'] < df['high'])
+    condition2 = (df['lossStop2'] > df['low']) & (df['lossStop2'] < df['high'])
+    df.loc[condition2, 'lStop'] = 2  # 先判断ls2
+    df.loc[condition1, 'lStop'] = 1
     return df
 
 
@@ -780,7 +869,7 @@ def getBarPosition(aSeries):
             position = '2'
 
         #判断位置"高"
-            # 1）当前bar非最大值，上一个bar值比当前大（但不是最大值）, 当前bar不属于前1 / 3
+            # 1）当前bar非最大值，上一个bar值比当前大（但不是最大值）, 当前bar不属于前1  / 3
             # 2）当前bar值和前两个bar值是依次降低
         if bigger != max and  aSeries[nowId-1] > now and aSeries[nowId-1] != max and now < range75:
             position = '3'
@@ -946,18 +1035,28 @@ def getTrend(current,previous):
 #把百分数字符转化为数字
 def str2Float(string):
     string = string.strip("%")
-    floatStr = abs(float(string) / 100)
-    return floatStr
+    float = abs(float(string) / 100)
+    return float
 
 def codeFormat(code) -> object:
-    temp = code[0:1]
-    if temp == '3' or temp == '0':
-        # print("深交所代码")
-        code = "sz." + code
+    if code == 'sh.000001':
+        code = "sh.000001"
     else:
-        code = "sh." + code
-    #print(code)
+        temp = code[0:1]
+        if temp == '3' or temp == '0':
+            # print("深交所代码")
+            code = "sz." + code
+        else:
+            code = "sh." + code
+        #print(code)
     return code
+
+#df日期转字符
+def dfDateToString(dates):
+    # dates.apply(lambda x: x.strftime(‘ % Y - % m - % d’))
+    dates.apply(lambda x: x.strftime('%Y-%m-%d'))
+    return dates
+
 
 
 def dateSeasonFormat(date):

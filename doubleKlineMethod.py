@@ -1,5 +1,7 @@
 import baostock as bs
 import pandas as pd
+# import modin.pandas as pd
+
 import openpyxl
 import numpy as np
 from pandas import DataFrame
@@ -114,9 +116,9 @@ def getMonthData(kLineMonthArray):
             # df = getScore(df,i,'w')
 
             #当bar为负，计算在一周期内，又'-0'转'-1'的次数，方便后续全网做排序，选次数多的来买
-            # temp = getBarChangeCount(df,i,barChangeCount)
-            # df = temp[0]
-            # barChangeCount = temp[1]
+            temp = getBarChangeCount(df,i,barChangeCount)
+            df = temp[0]
+            barChangeCount = temp[1]
 
 
             # 计算通道（4个月95%线柱包含在通道内）
@@ -192,6 +194,7 @@ def getWeeklyData(kLineWeekArray):
         lowDiffArray = np.array([])
         lowDifEma26Array = np.array([])
         highDifEma26Array = np.array([])
+        highDiffArray = np.array([])
         barArray = df['bar'].values #底部由向下转向上
         bar021Array = df['bar021'].values #底部由向下转向上
         bar120Array = df['bar120'].values  #顶部由向上转向下
@@ -208,9 +211,9 @@ def getWeeklyData(kLineWeekArray):
             # df = getScore(df,i,'w')
 
             #当bar为负，计算在一周期内，又'-0'转'-1'的次数，方便后续全网做排序，选次数多的来买
-            # temp = getBarChangeCount(df,i,barChangeCount)
-            # df = temp[0]
-            # barChangeCount = temp[1]
+            temp = getBarChangeCount(df,i,barChangeCount)
+            df = temp[0]
+            barChangeCount = temp[1]
 
 
             # 计算通道（4个月95%线柱包含在通道内）
@@ -239,6 +242,12 @@ def getWeeklyData(kLineWeekArray):
 
             #判断bar顶背离情况
             df = getDivergenceUp(df, i, bar120Array, closeArray,barArray)
+
+
+           # 计算做空止损价格（也就是做多时的盈利点， 相当于把k线图倒过来计算止损）
+            temp = getWinStopPrice(df, i, highDiffArray)
+            df = temp[0]
+            highDiffArray = temp[1]
 
 
         # print(df[[0,'deaHL','deaTrend','barRankP','bar','barHL','bTrend','po','bNo']])
