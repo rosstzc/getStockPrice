@@ -1,4 +1,5 @@
-## [Eglish Version](http://baidu.com)
+## [Eglish Version](https://github.com/rosstzc/getStockPrice/blob/master/README_EN.MD)
+## 
 
 ## 项目介绍
 
