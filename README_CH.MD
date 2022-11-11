@@ -1,5 +1,5 @@
 
-
+# 项目：股票价格形态分析项目
 ## 项目介绍
 
 这个项目源于当时刚开始学习股票投资，看了一些书比如《交易为生》，里面提到各种基于股票图形分析的交易信号，所以自己希望通过程序来帮助分析股票图形数据，从而筛选出有信号的股票，举几个信号例子：macd的bar柱背离，股价突破ATR通道、macd的bar柱从向下转向上、价格突破止损线、周股价偏离ema过大… 以上随便举几个例子，因为实际过程经过一段时间，也反复尝试各种信号（说明：这些信号是否靠谱，不在本项目讨论范围）。
@@ -45,4 +45,19 @@
 
 
 ![1](https://user-images.githubusercontent.com/5052733/201301299-8123a445-9a17-4e50-802e-6c185fc53dc8.png)
+
+
+![2-day chart](https://user-images.githubusercontent.com/5052733/201303918-5f20b3e6-8554-4645-b36b-d2721da5879d.png)
+
+![3-day chart2](https://user-images.githubusercontent.com/5052733/201303951-b9ca45c1-139c-4225-8b44-7f93ebc3583d.png)
+
+
+![3-chart-week](https://user-images.githubusercontent.com/5052733/201303991-b8f04936-53da-415f-9f59-c7dc71c22b91.png)
+
+![6-excel](https://user-images.githubusercontent.com/5052733/201304066-8b4c1a3a-85bd-4fd4-be45-14f0c02e8ae0.png)
+
+![5-周背离](https://user-images.githubusercontent.com/5052733/201304107-1ac514ed-1d91-47c3-95d1-a212b1a112ba.png)
+
+![7-excel-周趋势向上](https://user-images.githubusercontent.com/5052733/201304139-2759bf86-6f10-400f-a1cb-3e8b1e7d3c3d.png)
+
 
