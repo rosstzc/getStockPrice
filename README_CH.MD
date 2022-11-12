@@ -13,7 +13,7 @@
 ## 项目实现步骤：
 
 1. 通过api从股票数据平台获取所需股票的K线数据，并且保存到本地。
-2. 对k线数据进行加工处理，比如计算移动平均线、macd、ATP通道、kdj、止损线等。
+2. 对k线数据进行加工处理，比如计算移动平均线、macd、ATR通道、kdj、止损线等。
 3. 实现各种的策略信号逻辑，比如macd bar柱背离，股价突破ATR通道、价格突破止损线…
 4. 根据信号回测股票的历史数据，得到胜率和盈亏大概情况
 5. 调用mplfinance画图库，生成股票价格图形和策略信号图片。
@@ -41,19 +41,21 @@
 
 本项目是完整的开发项目，能够直接在本地运行，里面的功能逻辑和信号策略都是基于我的思考，其他人可能并不适用。若对项目感兴趣，可以下载到本地查看一下代码，提取一些可能有参考价值的代码或思路。
 
-##项目相关图片
+## 项目相关图片
 
-
+1 下图是导出的所有数据包括，chart目录是股票的k线图，多个excel表是表示不同价格形态的股票导出结果(根据天或周的形态导出)。
 ![1](https://user-images.githubusercontent.com/5052733/201301299-8123a445-9a17-4e50-802e-6c185fc53dc8.png)
+ 
+ 
+ 
+2 下图展开chart目录后的股票k线图片列表，主要是各股票的k线和信号标记的图片。
+![8-stock-list](https://user-images.githubusercontent.com/5052733/201443477-991c19cf-c4db-4941-96d3-e66a939d0486.png)
 
-
+3 下面两个图是根据我定义的规则而生成的信号标记，下图分3个部分：上部是ATR通道、止损、偏离度等的信号；中部是macd bar背离信号；下部是强力指标信号。
 ![2-day chart](https://user-images.githubusercontent.com/5052733/201303918-5f20b3e6-8554-4645-b36b-d2721da5879d.png)
-
 ![3-day chart2](https://user-images.githubusercontent.com/5052733/201303951-b9ca45c1-139c-4225-8b44-7f93ebc3583d.png)
 
-
-![3-chart-week](https://user-images.githubusercontent.com/5052733/201303991-b8f04936-53da-415f-9f59-c7dc71c22b91.png)
-
+4 下面几个图主要展示根据信号规则导出excel列表，每天统计某些出现信号的股票列表。
 ![6-excel](https://user-images.githubusercontent.com/5052733/201304066-8b4c1a3a-85bd-4fd4-be45-14f0c02e8ae0.png)
 
 ![5-周背离](https://user-images.githubusercontent.com/5052733/201304107-1ac514ed-1d91-47c3-95d1-a212b1a112ba.png)
