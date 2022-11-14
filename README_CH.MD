@@ -1,4 +1,7 @@
 
+[Chinese Version](https://github.com/rosstzc/getStockPrice/blob/master/README_CH.MD)
+
+[English Version](https://github.com/rosstzc/getStockPrice/blob/master/README.md)
 # 项目：股票价格形态分析项目
 ## 项目介绍
 
