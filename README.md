@@ -1,47 +1,51 @@
 
-# 项目：股票价格形态分析项目
-## 项目介绍
+# The analysis of Stock Price Patterns
 
-这个项目源于当时刚开始学习股票投资，看了一些书比如《交易为生》，里面提到各种基于股票图形分析的交易信号，所以自己希望通过程序来帮助分析股票图形数据，从而筛选出有信号的股票，举几个信号例子：macd的bar柱背离，股价突破ATR通道、macd的bar柱从向下转向上、价格突破止损线、周股价偏离ema过大… 以上随便举几个例子，因为实际过程经过一段时间，也反复尝试各种信号（说明：这些信号是否靠谱，不在本项目讨论范围）。
+## **Project Introduction**
 
-实现了输出信号后，需要用图表呈现信号，方便理解和判断。之后为了验证基于信号的买卖策略是否靠谱，实现通过历史数据来测试基于这些信号的交易策略的成功率和盈亏情况。
+This project was born when I began to learn about investing in shares. I read some books, such as "Trading for Living" which mentioned various trading signals based on stock chart analysis. So I hoped to use the program to help analyze the stock chart data and filter stocks with trading signals. Example of signals: the MACD bar deviates, the stock price breaks through the ATR channel, the MACD Bar turns downward to upward, the price breaks through the stop loss line, the weekly stock price deviates too much from the EMA...
 
-以上基本上就是这个项目实现的功能，由于这是个人项目，而且是不断迭代的项目，代码结构设计并不好，代码可读性比较差。
+After generating the signal, I displayed the signal with charts. Later,
 
-另外，之后较长时间对股票投资工具的了解，发现其实专业的股票投资工具能更好满足我对股票图形分析需求（只是当时自己并不了解）。所以一般个人投资者使用专业工具就可以，这些工具能提供各种分析和自定义功能，没必要费时间自己开发。当然也有些情况是比较特殊或个性化情况，比如我后来项目要做的板块的口袋支点股票数量分析，无法在专业股票工具获得，只好自己再开发。
+To verify whether the trading strategies based on signals are reliable or not, I did the program to test the success rate and the profit margin. The above is in essence the function of this project.
 
-## 项目实现步骤：
+As this is a personal project and an iterative project, the design of the code structure is not good. Moreover, having known more stock analysis tools. I found that professional stock analysis tools can meet my requirements for stock chart analysis. So, for personal investors, it is better to use professional tools to analyze stocks than to develop tools on their own. These tools can provide various analyses and custom functions, and there is no need to spend time developing tools by themselves.
 
-1. 通过api从股票数据平台获取所需股票的K线数据，并且保存到本地。
-2. 对k线数据进行加工处理，比如计算移动平均线、macd、ATR通道、kdj、止损线等。
-3. 实现各种的策略信号逻辑，比如macd bar柱背离，股价突破ATR通道、价格突破止损线…
-4. 根据信号回测股票的历史数据，得到胜率和盈亏大概情况
-5. 调用mplfinance画图库，生成股票价格图形和策略信号图片。
-6. 导出各种策略的选股结果，导出excel列表。
+Of course, there are also specific or personalized situations. For example, I did another project that got the number of pocket pivot stocks in a stock sector, because it cannot be obtained with professional stock tools.
 
-## 应用到的技术：
+## **Program process steps:**
 
-1. panda：处理股票数据从读取到处理分析等所有工作。
-2. mplfinance，生成每个股票的K线，macd等图形，并在图上标记各种策略信号
+1. Get the K-line data of the desired stock from the stock data platform through the API and save it locally.
+2. Process the k-line data, such as calculating the moving average, MACD, ATR channel, KDJ, stop loss line, etc.
+3. Implement various strategy signal logic, such as MACD bar divergence, stock price breaking through the ATR channel, price breaking through the stop loss line…
+4. According to the backtesting of the historical data, calculate the winning rate and the rate of profit.
+5. According to the historical data of the signal backtesting stock, get the approximate situation of winning rate and profit and loss.
+6. Call the Mplfinance drawing library to generate stock price charts and strategy signal images.
+7. Export stock selection results for different strategies, and export the Excel list.
 
-## 项目体会：
+## **Technology applied to the project:**
 
-这个项目是我第一个学习并使用panda的项目，这是一个个想法不断迭代的项目，整个项目持续时间接近1年。整个项目代码6k行左右(不算多)，通过项目让我掌握到panda一些常用功能，比如，
+1. panda: handles all the work from getting stock data to processing data analysis.
+2. mplfinance: generate K-line, Macd, and other charts from each stock, and flag various trading strategy signals on the chart.
 
-- 数据选择方法:loc, iloc, iat, at, tail…
-- 数据处理：tolist, drop, drop_duplicates, fillna, merge, append,  join,  groupby, set_index, Series…
-- 文件处理：read_csv，to_excel…
-- 画图：mplfinance
+## **Experience from the project:**
 
-这个项目做得不好地方在于开始并没有充分考虑功能模块化，由于后续功能持续叠加，导致代码嵌套层次较多，不容易阅读和维护；另外在数据处理性能方面遇到挑战，数据处理逻辑和存储还有很多优化空间。
+This project is my first project that uses pandas for data analysis. It is a project with continuous iteration of ideas, and the duration of the whole project is almost a year. The entire project code is about 6k lines. And through the project, I have mastered some common functions of pandas, such as:
 
-总的来说，作为自己第一个数据处理和分析项目，我从这里学到很多，业务上验证自己的想法，程序上让我掌握科学计算的一些基础知识和应用。
+- Data selection method: loc, iloc, iat, at, tail…
+- Data processing: tolist, drop, drop_duplicates, fillna, merge, append, join, groupby, set_index, Series…
+- File handling: read_csv, to_excel…
+- Drawing: mplfinance
 
-## 注意事项：
+the downside of this project is that I did not fully consider the application modularity at the beginning. Due to the continuous superposition of the following functions, the code is embedded in many levels, which is not easy to read and maintain. Besides, I experienced difficulties in data processing performance. The logic of processing and storing data still leaves a lot of room for optimization.
 
-本项目是完整的开发项目，能够直接在本地运行，里面的功能逻辑和信号策略都是基于我的思考，其他人可能并不适用。若对项目感兴趣，可以下载到本地查看一下代码，提取一些可能有参考价值的代码或思路。
+In general, as my first data processing and analysis project, I have learned a lot from here. I learned to verify my ideas through programming. From the project, I mastered some basic knowledge and applications of scientific computing.
 
-## 项目相关图片
+## **Precautions:**
+
+This project is a complete development project that can be run directly locally. The functional logic and signal strategy in it are based on my thinking, and others may not apply. If you are interested in the project, you can download it locally to check the code, and extract some code or ideas that may be of a reference value.
+
+## **Some screenshots of the project:**
 
 1 下图是导出的所有数据包括，chart目录是股票的k线图，多个excel表是表示不同价格形态的股票导出结果(根据天或周的形态导出)。
 ![1](https://user-images.githubusercontent.com/5052733/201301299-8123a445-9a17-4e50-802e-6c185fc53dc8.png)
