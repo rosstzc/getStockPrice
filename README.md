@@ -1,3 +1,6 @@
+[Chinese Version](https://github.com/rosstzc/getStockPrice/blob/master/README_CH.MD)
+
+[English Version](https://github.com/rosstzc/getStockPrice/blob/master/README.md)
 
 # The analysis of Stock Price Patterns
 
