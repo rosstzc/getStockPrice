@@ -47,19 +47,19 @@ This project is a complete development project that can be run directly locally.
 
 ## **Some screenshots of the project:**
 
-1 下图是导出的所有数据包括，chart目录是股票的k线图，多个excel表是表示不同价格形态的股票导出结果(根据天或周的形态导出)。
+1 In the figure below showed the files outputed from the project. The "chart" folder was the charts of stock price patterns and the trading signals. The Excel files were the lists of stocks that filtered by the different strategies.
 ![1](https://user-images.githubusercontent.com/5052733/201301299-8123a445-9a17-4e50-802e-6c185fc53dc8.png)
  
  
  
-2 下图展开chart目录后的股票k线图片列表，主要是各股票的k线和信号标记的图片。
+2 The files in "chart" folder  are the stocks charts and the trading signals.
 ![8-stock-list](https://user-images.githubusercontent.com/5052733/201443477-991c19cf-c4db-4941-96d3-e66a939d0486.png)
 
-3 下面两个图是根据我定义的规则而生成的信号标记，下图分3个部分：上部是ATR通道、止损、偏离度等的信号；中部是macd bar背离信号；下部是强力指标信号。
+3 In the figure below, It showed the charts and signals that generated according to the rules I defined. The figure was divided into three parts: the upper part was the signal of ATR channel, the stop loss line and the price deviation. The middle part was the signal of macd bar deviation. The lower part was the signal of strong indicator.
 ![2-day chart](https://user-images.githubusercontent.com/5052733/201303918-5f20b3e6-8554-4645-b36b-d2721da5879d.png)
 ![3-day chart2](https://user-images.githubusercontent.com/5052733/201303951-b9ca45c1-139c-4225-8b44-7f93ebc3583d.png)
 
-4 下面几个图主要展示根据信号规则导出excel列表，每天统计某些出现信号的股票列表。
+4 In the figures below, It showed the stock selection results for different strategies.
 ![6-excel](https://user-images.githubusercontent.com/5052733/201304066-8b4c1a3a-85bd-4fd4-be45-14f0c02e8ae0.png)
 
 ![5-周背离](https://user-images.githubusercontent.com/5052733/201304107-1ac514ed-1d91-47c3-95d1-a212b1a112ba.png)
